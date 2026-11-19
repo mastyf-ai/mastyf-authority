@@ -32,7 +32,7 @@ const CASES: Case[] = [
     request: 'alice @ her laptop\nread customers × 40\nreason: ticket 4812',
     checks: [
       { name: 'Device', state: 'ok', note: 'Alice’s registered laptop, fingerprint' },
-      { name: 'Need-to-know', state: 'ok', note: 'Records on her open tickets' },
+      { name: 'Need-to-know', state: 'ok', note: 'On her cases and today’s calls' },
       { name: 'Budget', state: 'ok', note: '1,240 + 40 of 5,000 today' },
     ],
     meter: { label: 'Alice · customer records today', used: 1240, add: 40, limit: 5000 },

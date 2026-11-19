@@ -17,7 +17,7 @@ const LAYERS = [
   },
   {
     id: 'vault', title: 'Key vault',
-    what: 'Every record is locked with its own key. A separate vault hands out keys within daily budgets, refuses bait records, and only for cases the person is assigned to.',
+    what: 'Every record is locked with its own key. A separate vault hands out keys within daily budgets, refuses bait records, and only for the person’s own cases and incoming calls (assigned automatically by the phone or helpdesk system).',
     why: 'It does not trust the decision engine. Even if everything in front of it is hacked, the most anyone can take is a known number.',
     stat: '≤ 5,000', statLabel: 'customer records a day, even with the engine hacked',
   },

@@ -5,6 +5,7 @@ import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { AttackSimulator } from '@/components/authority/AttackSimulator';
 import { AuthorityFlow } from '@/components/authority/AuthorityFlow';
+import { RiskModelDemo } from '@/components/authority/RiskModelDemo';
 import '@/app/attack-lab/attack-lab.css';
 import { LayerExplorer } from '@/components/authority/LayerExplorer';
 import { CeilingCalculator } from '@/components/authority/CeilingCalculator';
@@ -70,6 +71,19 @@ export default async function AuthorityPage() {
             <a href="#try" className="link-icon sec-head__link">Pick your own attacker<ArrowRight size={14} strokeWidth={1.75} aria-hidden="true" /></a>
           </header>
           <AuthorityFlow />
+        </section>
+
+        <section id="behaviour" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Behavioural risk model · interactive</p>
+            <h2 className="auth-h2">It learns what normal looks like for each person</h2>
+            <p className="auth-lead">
+              Thieves and hijacked accounts almost always do something that person has never done: a new destination, an
+              odd hour, far more than usual, something few people in the company ever touch. Build Alice’s day and watch
+              the score.
+            </p>
+          </div>
+          <RiskModelDemo />
         </section>
 
         <section id="try" className="section auth-section">
