@@ -1,0 +1,152 @@
+import { Metadata } from 'next';
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
+import { SiteNav } from '@/components/SiteNav';
+import { SiteFooter } from '@/components/SiteFooter';
+import { AttackSimulator } from '@/components/authority/AttackSimulator';
+import { LayerExplorer } from '@/components/authority/LayerExplorer';
+import { CeilingCalculator } from '@/components/authority/CeilingCalculator';
+import { AgentBench, AttackMatrix, DetectionChart } from '@/components/authority/Benchmarks';
+import { safeAuth } from '@/lib/safe-auth';
+import './authority.css';
+
+export const metadata: Metadata = {
+  title: 'Mastyf Authority — research preview',
+  description:
+    'A break-in with a ceiling: data keys, irreversible actions and AI agents governed so the worst case of any compromise is a known, tested number.',
+};
+
+const STATS = [
+  { n: '0', l: 'records for a stolen password or session' },
+  { n: '5,000', l: 'records a day at most, even with malware on the laptop' },
+  { n: '0 of 12', l: 'mass deletions executed in a ransomware run' },
+  { n: '1.6%', l: 'of worst-case AI agent hijacks succeed' },
+  { n: '168 / 231', l: 'real insiders flagged, no attack examples used' },
+  { n: '0', l: 'known vulnerabilities in dependencies' },
+];
+
+const NOT_COVERED = [
+  ['Bugs in your own apps, browsers or operating systems', 'We limit what an exploited account can then take; we do not stop the first exploit.'],
+  ['Inbound phishing delivery', 'Mail security. A phished login without the person’s device gets nothing.'],
+  ['Network floods (DDoS)', 'A DDoS provider. Our front door caps connections and rates.'],
+  ['Copying to USB on the laptop', 'Endpoint DLP. The vault caps what reached the laptop; marks trace leaks.'],
+  ['People misusing what they may legitimately see', 'Need-to-know and budgets narrow it; marks identify who leaked it.'],
+];
+
+export default async function AuthorityPage() {
+  const session = await safeAuth();
+  return (
+    <>
+      <SiteNav session={!!session} />
+      <main className="page-main auth-page">
+        <header className="page-head auth-hero">
+          <p className="eyebrow eyebrow--dot">Research preview · Mastyf Authority</p>
+          <h1 className="page-head__title">Every break‑in gets a ceiling.</h1>
+          <p className="page-head__lead">
+            Most security tries to spot attackers. Authority assumes some will get in, and makes the worst they can do a
+            small, known number: computed in advance, enforced where the data and the irreversible actions live, and
+            tested by attacking it.
+          </p>
+          <div className="page-head__actions">
+            <a href="#try" className="btn btn-primary">Try to break in<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
+            <a href="#benchmarks" className="btn">See the benchmarks</a>
+            <Link href="/pilot" className="link-icon">Join the pilot<ArrowRight size={13} strokeWidth={1.75} aria-hidden="true" /></Link>
+          </div>
+          <ul className="auth-stats">
+            {STATS.map((s) => (
+              <li key={s.l}><strong>{s.n}</strong><span>{s.l}</span></li>
+            ))}
+          </ul>
+        </header>
+
+        <section id="try" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Interactive</p>
+            <h2 className="auth-h2">Pick an attacker and a goal</h2>
+            <p className="auth-lead">Each outcome below comes from a measured run against the real system.</p>
+          </div>
+          <AttackSimulator />
+        </section>
+
+        <section id="how" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">How it works</p>
+            <h2 className="auth-h2">Six layers that do not trust each other</h2>
+            <p className="auth-lead">
+              Each layer enforces its own limits, so breaking one never unlocks the next. The decision engine can be hacked
+              outright and the vault and gates still hold.
+            </p>
+          </div>
+          <LayerExplorer />
+        </section>
+
+        <section id="ceiling" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Damage ceiling</p>
+            <h2 className="auth-h2">The worst case, as a number</h2>
+            <p className="auth-lead">
+              Move the slider. This is the most that any combination of compromised accounts could take from a sample
+              company, before anyone notices anything.
+            </p>
+          </div>
+          <CeilingCalculator />
+        </section>
+
+        <section id="benchmarks" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Benchmarks</p>
+            <h2 className="auth-h2">Attacked, not just tested</h2>
+          </div>
+          <h3 className="auth-h3">MITRE ATT&amp;CK techniques</h3>
+          <AttackMatrix />
+          <div className="auth-two">
+            <div>
+              <h3 className="auth-h3">AI agent hijacking</h3>
+              <AgentBench />
+            </div>
+            <div>
+              <h3 className="auth-h3">Insider detection on real data</h3>
+              <DetectionChart />
+            </div>
+          </div>
+          <h3 className="auth-h3">Engineering</h3>
+          <dl className="auth-eng">
+            <div><dt>Automated tests</dt><dd>129 passing, incl. crash, failover and differential tests</dd></div>
+            <div><dt>Fuzzing</dt><dd>50,000 hostile requests: no crash, nothing released</dd></div>
+            <div><dt>Dependencies</dt><dd>0 known vulnerabilities (Python and Rust audits)</dd></div>
+            <div><dt>Encryption</dt><dd>TLS 1.3 only; no protocol or cipher findings</dd></div>
+            <div><dt>Failover</dt><dd>~5–7 s, nothing lost; any one of three referees can fail</dd></div>
+            <div><dt>Throughput</dt><dd>~5,500 decisions/s through the front door, 99% in 14 ms</dd></div>
+          </dl>
+        </section>
+
+        <section id="limits" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Honest limits</p>
+            <h2 className="auth-h2">What it does not cover</h2>
+          </div>
+          <ul className="auth-limits">
+            {NOT_COVERED.map(([a, b]) => (
+              <li key={a}><strong>{a}</strong><span>{b}</span></li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="section auth-section auth-cta">
+          <h2 className="auth-h2">Help us break it</h2>
+          <p className="auth-lead">
+            The public challenge is opening: anyone can attack a live copy of Authority guarding a fake company, from
+            the browser or the API, with no sign-up and no access to our code. Verified breaks go on a public
+            leaderboard, with who broke it and how.
+          </p>
+          <div className="page-head__actions">
+            <a href="#try" className="btn btn-primary">Try the simulator<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
+            <Link href="/research" className="btn">Our research</Link>
+          </div>
+          <p className="auth-footnote">Research preview. Results measured on test deployments and public datasets (CERT insider threat, LANL, AgentDojo); not yet on production traffic.</p>
+        </section>
+      </main>
+      <SiteFooter />
+    </>
+  );
+}
