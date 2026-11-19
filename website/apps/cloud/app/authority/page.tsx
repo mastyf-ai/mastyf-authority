@@ -4,6 +4,8 @@ import { ArrowRight } from 'lucide-react';
 import { SiteNav } from '@/components/SiteNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { AttackSimulator } from '@/components/authority/AttackSimulator';
+import { AuthorityFlow } from '@/components/authority/AuthorityFlow';
+import '@/app/attack-lab/attack-lab.css';
 import { LayerExplorer } from '@/components/authority/LayerExplorer';
 import { CeilingCalculator } from '@/components/authority/CeilingCalculator';
 import { AgentBench, AttackMatrix, DetectionChart } from '@/components/authority/Benchmarks';
@@ -48,7 +50,7 @@ export default async function AuthorityPage() {
             tested by attacking it.
           </p>
           <div className="page-head__actions">
-            <a href="#try" className="btn btn-primary">Try to break in<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
+            <a href="#flow" className="btn btn-primary">See it work<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
             <a href="#benchmarks" className="btn">See the benchmarks</a>
             <Link href="/pilot" className="link-icon">Join the pilot<ArrowRight size={13} strokeWidth={1.75} aria-hidden="true" /></Link>
           </div>
@@ -58,6 +60,17 @@ export default async function AuthorityPage() {
             ))}
           </ul>
         </header>
+
+        <section id="flow" className="section auth-section">
+          <header className="sec-head sec-head--split">
+            <div>
+              <p className="eyebrow">How it works · simulated from measured runs</p>
+              <h2 className="auth-h2">Your apps ask. Authority decides how much.</h2>
+            </div>
+            <a href="#try" className="link-icon sec-head__link">Pick your own attacker<ArrowRight size={14} strokeWidth={1.75} aria-hidden="true" /></a>
+          </header>
+          <AuthorityFlow />
+        </section>
 
         <section id="try" className="section auth-section">
           <div className="auth-section__head">
@@ -132,19 +145,10 @@ export default async function AuthorityPage() {
           </ul>
         </section>
 
-        <section className="section auth-section auth-cta">
-          <h2 className="auth-h2">Help us break it</h2>
-          <p className="auth-lead">
-            The public challenge is opening: anyone can attack a live copy of Authority guarding a fake company, from
-            the browser or the API, with no sign-up and no access to our code. Verified breaks go on a public
-            leaderboard, with who broke it and how.
-          </p>
-          <div className="page-head__actions">
-            <a href="#try" className="btn btn-primary">Try the simulator<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
-            <Link href="/research" className="btn">Our research</Link>
-          </div>
-          <p className="auth-footnote">Research preview. Results measured on test deployments and public datasets (CERT insider threat, LANL, AgentDojo); not yet on production traffic.</p>
-        </section>
+        <p className="auth-footnote auth-preview-note">
+          Research preview. Results measured on test deployments and public datasets (CERT insider threat, LANL,
+          AgentDojo), not yet on production traffic.
+        </p>
       </main>
       <SiteFooter />
     </>
