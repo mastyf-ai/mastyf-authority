@@ -1,0 +1,28 @@
+# TLS proxy in front of the Python authority (which listens on 127.0.0.1:8740 only).
+# Caddy gets and renews the certificate; set the domain to your passkey domain (AUTHORITY_RP_ID).
+authority.corp.example {
+	encode zstd gzip
+	request_body {
+		max_size 2MB
+	}
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		-Server
+	}
+	# machine callers can be required to present client certificates as well as their API key:
+	# tls {
+	# 	client_auth {
+	# 		mode require_and_verify
+	# 		trust_pool file /etc/mastyf/callers-ca.pem
+	# 	}
+	# }
+	reverse_proxy 127.0.0.1:8740 {
+		transport http {
+			dial_timeout 2s
+			response_header_timeout 10s
+		}
+	}
+	# per-client rate limiting needs the caddy-ratelimit plugin; the authority also caps connections
+}

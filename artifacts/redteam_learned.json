@@ -1,0 +1,300 @@
+{
+  "best_strategy": {
+    "identity": "human:alice",
+    "verb": "data.read",
+    "dest": "warehouse",
+    "log_chunk": 6.513116882432252,
+    "every_h": 17.692087016070627,
+    "hour0": 11,
+    "span": 4
+  },
+  "best_stolen_min_of_2": 9422,
+  "best_runs": [
+    {
+      "stolen": 9422,
+      "attempts": 14,
+      "first_refusal_h": null,
+      "frozen": false
+    },
+    {
+      "stolen": 9422,
+      "attempts": 14,
+      "first_refusal_h": null,
+      "frozen": false
+    }
+  ],
+  "evaluations": 120,
+  "top10": [
+    {
+      "i": 39,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.513116882432252,
+        "every_h": 17.692087016070627,
+        "hour0": 11,
+        "span": 4
+      },
+      "score": 9422,
+      "runs": [
+        {
+          "stolen": 9422,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 9422,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 50,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.513116882432252,
+        "every_h": 17.692087016070627,
+        "hour0": 11,
+        "span": 4
+      },
+      "score": 9422,
+      "runs": [
+        {
+          "stolen": 9422,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 9422,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 59,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.513116882432252,
+        "every_h": 17.692087016070627,
+        "hour0": 11,
+        "span": 4
+      },
+      "score": 9422,
+      "runs": [
+        {
+          "stolen": 9422,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 9422,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 43,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.455393871911054,
+        "every_h": 17.692087016070627,
+        "hour0": 11,
+        "span": 4
+      },
+      "score": 8904,
+      "runs": [
+        {
+          "stolen": 8904,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 8904,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 36,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.513116882432252,
+        "every_h": 17.692087016070627,
+        "hour0": 11,
+        "span": 6
+      },
+      "score": 8749,
+      "runs": [
+        {
+          "stolen": 8749,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 8749,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 37,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.513116882432252,
+        "every_h": 17.692087016070627,
+        "hour0": 11,
+        "span": 2
+      },
+      "score": 8749,
+      "runs": [
+        {
+          "stolen": 8749,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 8749,
+          "attempts": 13,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 40,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.513116882432252,
+        "every_h": 17.692087016070627,
+        "hour0": 11,
+        "span": 4
+      },
+      "score": 8749,
+      "runs": [
+        {
+          "stolen": 8749,
+          "attempts": 13,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 8749,
+          "attempts": 13,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 41,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "attacker_host",
+        "log_chunk": 6.513116882432252,
+        "every_h": 17.692087016070627,
+        "hour0": 11,
+        "span": 4
+      },
+      "score": 8749,
+      "runs": [
+        {
+          "stolen": 8749,
+          "attempts": 13,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 8749,
+          "attempts": 13,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 42,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.513116882432252,
+        "every_h": 6.831655154283139,
+        "hour0": 11,
+        "span": 4
+      },
+      "score": 8749,
+      "runs": [
+        {
+          "stolen": 8749,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 8749,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    },
+    {
+      "i": 44,
+      "strategy": {
+        "identity": "human:alice",
+        "verb": "data.read",
+        "dest": "warehouse",
+        "log_chunk": 6.513116882432252,
+        "every_h": 17.692087016070627,
+        "hour0": 13,
+        "span": 4
+      },
+      "score": 8749,
+      "runs": [
+        {
+          "stolen": 8749,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        },
+        {
+          "stolen": 9422,
+          "attempts": 14,
+          "first_refusal_h": null,
+          "frozen": false
+        }
+      ]
+    }
+  ],
+  "learned_budgets": true
+}

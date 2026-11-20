@@ -1,0 +1,264 @@
+{
+  "version": "2026-11-19.1",
+  "identities": {
+    "human:alice": {
+      "kind": "human",
+      "allowed_actions": [
+        "auth.login",
+        "data.read",
+        "data.export"
+      ]
+    },
+    "human:bob": {
+      "kind": "human",
+      "approver": true,
+      "allowed_actions": [
+        "auth.login",
+        "secret.read",
+        "data.read",
+        "process.exec",
+        "file.write_bulk",
+        "backup.delete"
+      ]
+    },
+    "human:carol": {
+      "kind": "human",
+      "allowed_actions": [
+        "auth.login",
+        "repo.push",
+        "repo.history_rewrite",
+        "artifact.publish"
+      ]
+    },
+    "human:dana": {
+      "kind": "human",
+      "approver": true,
+      "allowed_actions": [
+        "auth.login",
+        "data.read"
+      ]
+    },
+    "svc:status-page": {
+      "kind": "service",
+      "public_facing": true,
+      "allowed_actions": [
+        "data.read",
+        "network.egress"
+      ]
+    },
+    "svc:export-job": {
+      "kind": "service",
+      "allowed_actions": [
+        "data.export"
+      ]
+    },
+    "svc:ci-bot": {
+      "kind": "service",
+      "allowed_actions": [
+        "artifact.publish",
+        "repo.push"
+      ]
+    },
+    "svc:backup": {
+      "kind": "service",
+      "allowed_actions": [
+        "data.read",
+        "file.write_bulk"
+      ]
+    },
+    "human:erin": {
+      "kind": "human",
+      "approver": true,
+      "allowed_actions": [
+        "auth.login"
+      ]
+    },
+    "agent:support-bot": {
+      "kind": "agent",
+      "allowed_actions": [
+        "data.read",
+        "network.egress",
+        "data.export"
+      ]
+    }
+  },
+  "thresholds": {
+    "secret.read": {
+      "per_action": 5,
+      "per_day": 120
+    },
+    "data.export": {
+      "per_action": 50000,
+      "per_day": 60000
+    },
+    "file.write_bulk": {
+      "per_action": 6000,
+      "per_day": 12000
+    },
+    "repo.history_rewrite": {
+      "per_action": 50,
+      "per_day": 100
+    }
+  },
+  "always_escalate": [
+    "backup.delete"
+  ],
+  "destinations": {
+    "allow": [
+      "s3://corp-reports",
+      "s3://corp-warehouse",
+      "monitoring.corp.example",
+      "backup://vault"
+    ],
+    "deny": [
+      "*.onion",
+      "*pastebin*",
+      "*.ngrok*"
+    ],
+    "_comment": "exact registered destinations only: name patterns like s3://corp-* can be spoofed by anyone who can create a bucket with a matching name"
+  },
+  "protected_branches": [
+    "main",
+    "master",
+    "release/*"
+  ],
+  "canaries": {
+    "resources": [
+      "db://crm/customers/canary*",
+      "vault://prod/canary*",
+      "fs://home/canary*"
+    ],
+    "values": [
+      "AKIACANARY0000000000",
+      "canary-ssh-ed25519-7f3a"
+    ]
+  },
+  "model": {
+    "escalate_at": 0.5,
+    "deny_at": 0.9
+  },
+  "grant_ttl_seconds": 60,
+  "approval_ttl_seconds": 900,
+  "auto_freeze_denials_per_hour": 3,
+  "data_budgets": {
+    "_comment": "records whose keys may be released per identity per rolling 24h. 'class@destination' budgets apply to exports; a destination without an entry gets 0. Unlisted = 0. Only sensitive data classes are budgeted; public data (e.g. status) is not.",
+    "classes": {
+      "ssh.key": [
+        "fs://home/*",
+        "vault://prod/ssh/*"
+      ],
+      "secret": [
+        "vault://prod/*"
+      ],
+      "crm.customer": [
+        "db://crm/customers*"
+      ],
+      "prod.files": [
+        "fs://prod/*"
+      ],
+      "system.config": [
+        "fs://login-node/*"
+      ]
+    },
+    "budgets": {
+      "human:alice": {
+        "crm.customer": 5000,
+        "crm.customer@s3://corp-reports": 2500
+      },
+      "human:bob": {
+        "secret": 20,
+        "ssh.key": 100
+      },
+      "svc:export-job": {
+        "crm.customer@s3://corp-warehouse": 20000
+      },
+      "svc:backup": {
+        "prod.files": 12000
+      },
+      "agent:support-bot": {
+        "crm.customer": 1000
+      }
+    },
+    "overrun_signatures": 2,
+    "overrun_max": {
+      "_comment": "most records approvers may add on top of a budget per 24 h; missing entry = no overruns (keeps the damage ceiling finite)",
+      "human:alice": {
+        "crm.customer": 2500
+      },
+      "human:bob": {
+        "secret": 10,
+        "ssh.key": 50
+      },
+      "svc:export-job": {
+        "crm.customer": 10000
+      },
+      "svc:backup": {
+        "prod.files": 6000
+      }
+    }
+  },
+  "change_gates": {
+    "_comment": "enforced at the CDN, Git host, backup store and storage service, independent of the authority",
+    "signatures": 2,
+    "protected_branches": [
+      "main",
+      "master",
+      "release/*"
+    ],
+    "rewrite_budget": {
+      "human:carol": 30
+    },
+    "write_budget": {
+      "svc:backup": {
+        "backup://vault*": 12000
+      }
+    },
+    "delete_lock_seconds": 259200,
+    "publish_allowed_hosts": []
+  },
+  "undo_windows": {
+    "_comment": "irreversible actions wait this long; requester/approvers/security can cancel; 2 approvers can release early",
+    "signatures": 2,
+    "burst_per_hour": 5,
+    "security": [
+      "human:erin"
+    ],
+    "rules": [
+      {
+        "action": "backup.delete",
+        "delay_seconds": 259200
+      },
+      {
+        "action": "key.delete",
+        "delay_seconds": 259200
+      },
+      {
+        "action": "storage.delete",
+        "delay_seconds": 86400,
+        "min_count": 100
+      },
+      {
+        "action": "account.delete",
+        "delay_seconds": 86400
+      },
+      {
+        "action": "payment.send",
+        "delay_seconds": 14400,
+        "min_count": 1000000
+      },
+      {
+        "action": "email.bulk_send",
+        "delay_seconds": 3600,
+        "min_count": 500
+      },
+      {
+        "action": "dns.change",
+        "delay_seconds": 3600
+      },
+      {
+        "action": "permission.grant",
+        "delay_seconds": 3600
+      }
+    ]
+  }
+}

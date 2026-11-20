@@ -1,0 +1,37 @@
+# systemd unit for the key service on a dedicated, hardened host.
+[Unit]
+Description=Mastyf key service (bounded-loss key release)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mastyf-ks
+Group=mastyf-ks
+ExecStart=/usr/local/bin/mastyf-keyservice --policy /etc/mastyf/policy.json \
+  --authority-key /etc/mastyf/node1.pub.pem --authority-key /etc/mastyf/node2.pub.pem \
+  --authority-key /etc/mastyf/node3.pub.pem --threshold 2 \
+  --approvers /etc/mastyf/approvers.json --devices /etc/mastyf/devices.json --case-key /etc/mastyf/case.pub.pem \
+  --state-dir /var/lib/mastyf-ks --kek-command /etc/mastyf/kek.sh \
+  --tls-listen 0.0.0.0:8443 --tls-cert /etc/mastyf/tls/server.crt --tls-key /etc/mastyf/tls/server.key \
+  --tls-client-ca /etc/mastyf/tls/clients-ca.crt
+Restart=on-failure
+# hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+StateDirectory=mastyf-ks
+StateDirectoryMode=0700
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

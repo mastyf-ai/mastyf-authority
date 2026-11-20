@@ -1,0 +1,18 @@
+name: Tests
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+permissions: { contents: read }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - uses: dtolnay/rust-toolchain@stable
+      - run: (cd rust/keyservice && cargo build --release --locked --bins)
+      - run: pip install -e '.[dev]' hypothesis
+      - run: PYTHONPATH=src:tests pytest -q

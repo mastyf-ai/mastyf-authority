@@ -1,0 +1,4 @@
+# verify.sh: no published ports (the attack container reaches the sandbox over its own network)
+services:
+  gateway: { ports: !reset [] }
+  app: { ports: !reset [] }

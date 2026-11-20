@@ -1,0 +1,30 @@
+[package]
+name = "mastyf-keyservice"
+version = "0.1.0"
+edition = "2021"
+description = "Bounded-loss key service: verifies authority grants, enforces data budgets, holds record keys."
+license = "AGPL-3.0-or-later"
+publish = false
+
+[[bin]]
+name = "mastyf-gateway"
+path = "src/bin/gateway.rs"
+
+[dependencies]
+ed25519-dalek = { version = "2", features = ["pkcs8", "pem"] }
+sha2 = "0.10"
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+hex = "0.4"
+regex = "1"
+aes-gcm = "0.10"
+rand_core = { version = "0.6", features = ["getrandom"] }
+ring = "0.17"
+x25519-dalek = "2"
+hkdf = "0.12"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+httparse = "1"
+
+[profile.release]
+overflow-checks = true

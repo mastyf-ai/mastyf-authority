@@ -1,0 +1,18 @@
+# Rust key service + change gates. Build: docker build -f deploy/Dockerfile.keyservice -t mastyf-keyservice .
+FROM rust:1.90-slim-bookworm AS build
+WORKDIR /src
+COPY rust/keyservice/ .
+RUN cargo build --release --locked
+
+FROM gcr.io/distroless/cc-debian12:nonroot
+COPY --from=build /src/target/release/mastyf-keyservice /usr/local/bin/mastyf-keyservice
+USER nonroot
+# State (journal) must be a persistent, private volume. The KEK comes from --kek-command (KMS), not the image.
+VOLUME ["/state"]
+EXPOSE 8443
+ENTRYPOINT ["/usr/local/bin/mastyf-keyservice"]
+CMD ["--policy", "/config/policy.json", "--authority-key", "/config/authority.pub.pem", \
+     "--approvers", "/config/approvers.json", "--devices", "/config/devices.json", "--case-key", "/config/case.pub.pem", \
+     "--state-dir", "/state", "--kek-command", "/config/kek.sh", \
+     "--tls-listen", "0.0.0.0:8443", "--tls-cert", "/tls/server.crt", "--tls-key", "/tls/server.key", \
+     "--tls-client-ca", "/tls/clients-ca.crt"]

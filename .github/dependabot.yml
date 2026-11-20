@@ -1,0 +1,7 @@
+version: 2
+updates:
+  - { package-ecosystem: pip, directory: "/", schedule: { interval: weekly } }
+  - { package-ecosystem: cargo, directory: "/rust/keyservice", schedule: { interval: weekly } }
+  - { package-ecosystem: github-actions, directory: "/", schedule: { interval: weekly } }
+  - { package-ecosystem: docker, directory: "/deploy", schedule: { interval: weekly } }
+  - { package-ecosystem: docker, directory: "/sandbox", schedule: { interval: weekly } }

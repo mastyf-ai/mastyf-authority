@@ -1,0 +1,28 @@
+[project]
+name = "mastyf-authority"
+version = "0.1.0"
+description = "Mastyf Authority: every break-in gets a ceiling. Pre-execution authority with signed grants, key budgets and a behavioural risk model."
+requires-python = ">=3.11"
+license = { text = "AGPL-3.0-or-later" }
+classifiers = ["License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)", "Topic :: Security"]
+dependencies = [
+    "numpy>=1.26",
+    "scikit-learn>=1.4",
+    "cryptography>=42",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+authority = "authority.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/authority"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

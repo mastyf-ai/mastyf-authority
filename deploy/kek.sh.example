@@ -1,0 +1,4 @@
+#!/bin/sh
+# Prints the 32-byte key-encryption key (base64) to stdout. Example with AWS KMS: the KEK is stored
+# only as KMS ciphertext; the host's IAM role may call kms:Decrypt on this one key and nothing else.
+exec aws kms decrypt --ciphertext-blob fileb:///etc/mastyf/kek.enc --query Plaintext --output text

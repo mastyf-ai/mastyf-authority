@@ -1,0 +1,29 @@
+[Unit]
+Description=Mastyf gateway (Rust front door for the authority)
+After=network-online.target mastyf-authority.service
+Wants=network-online.target
+
+[Service]
+User=mastyf-gw
+ExecStart=/usr/local/bin/mastyf-gateway --listen 0.0.0.0:443 --tls-cert /etc/mastyf/gw.pem --tls-key /etc/mastyf/gw.key --callers /etc/mastyf/callers.json --upstream 127.0.0.1:8740
+Restart=always
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+ReadOnlyPaths=/etc/mastyf
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

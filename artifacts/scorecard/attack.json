@@ -1,0 +1,254 @@
+[
+  {
+    "technique": "T1078",
+    "name": "Valid Accounts (stolen password/session)",
+    "tactic": "Initial Access",
+    "stolen": "0 records",
+    "bypass": "0 records",
+    "outcome": "BLOCKED",
+    "note": "device binding: a login without the person's registered device gets no keys"
+  },
+  {
+    "technique": "T1550.004",
+    "name": "Use Alternate Authentication Material: Web Session Cookie",
+    "tactic": "Lateral Movement",
+    "stolen": "0 records",
+    "bypass": "0 records",
+    "outcome": "BLOCKED",
+    "note": "same: cookies and tokens are not the device key"
+  },
+  {
+    "technique": "T1213",
+    "name": "Data from Information Repositories (malware on the laptop)",
+    "tactic": "Collection",
+    "stolen": "5000 records/24h",
+    "bypass": "5000 records/24h",
+    "outcome": "CAPPED",
+    "note": "per-person data budget (5,000/24h) holds even with the authority bypassed"
+  },
+  {
+    "technique": "T1567",
+    "name": "Exfiltration Over Web Service",
+    "tactic": "Exfiltration",
+    "stolen": "0 records",
+    "bypass": "0 records",
+    "outcome": "BLOCKED",
+    "note": "unregistered destination: authority denies; key service budget for it is 0"
+  },
+  {
+    "technique": "T1048",
+    "name": "Exfiltration Over Alternative Protocol",
+    "tactic": "Exfiltration",
+    "stolen": "DENY",
+    "bypass": "n/a (no data keys)",
+    "outcome": "BLOCKED",
+    "note": "denied destinations (paste sites, onion, tunnels)"
+  },
+  {
+    "technique": "T1555",
+    "name": "Credentials from Password Stores",
+    "tactic": "Credential Access",
+    "stolen": "0 secrets/24h",
+    "bypass": "20 secrets/24h",
+    "outcome": "CAPPED",
+    "note": "secret budget 20/24h"
+  },
+  {
+    "technique": "T1530",
+    "name": "Data from Cloud Storage (stolen service key)",
+    "tactic": "Collection",
+    "stolen": "0 records/24h",
+    "bypass": "20000 records/24h",
+    "outcome": "CAPPED",
+    "note": "service budget bound to its own destination"
+  },
+  {
+    "technique": "T1005",
+    "name": "Data from Local System: harvesting (bait record)",
+    "tactic": "Collection",
+    "stolen": "DENY",
+    "bypass": "key service freezes on bait ids too",
+    "outcome": "DETECTED",
+    "note": "bait record touched: identity frozen at once"
+  },
+  {
+    "technique": "T1485",
+    "name": "Data Destruction (mass storage deletion)",
+    "tactic": "Impact",
+    "stolen": "same as bypass",
+    "bypass": "0 executed of 12",
+    "outcome": "DELAYED",
+    "note": "24 h undo window; 6th request in an hour froze the identity and cancelled all"
+  },
+  {
+    "technique": "T1486",
+    "name": "Data Encrypted for Impact (overwrite files)",
+    "tactic": "Impact",
+    "stolen": "same as bypass",
+    "bypass": "person 0 / backup job 12,000 files in 24h",
+    "outcome": "CAPPED",
+    "note": "file-write budgets at the storage gate (12,000/24h for the backup job, only into the vault, 0 for people); storage keeps prior versions"
+  },
+  {
+    "technique": "T1490",
+    "name": "Inhibit System Recovery (delete backups)",
+    "tactic": "Impact",
+    "stolen": "always escalates",
+    "bypass": "refused",
+    "outcome": "BLOCKED",
+    "note": "needs 2 approvers AND a 72 h time lock anyone can cancel"
+  },
+  {
+    "technique": "T1657",
+    "name": "Financial Theft (large payment)",
+    "tactic": "Impact",
+    "stolen": "same as bypass",
+    "bypass": "held 4 h",
+    "outcome": "DELAYED",
+    "note": "payments over the threshold wait 4 h; cancellable; burst freezes"
+  },
+  {
+    "technique": "T1098",
+    "name": "Account Manipulation (grant admin)",
+    "tactic": "Persistence",
+    "stolen": "same as bypass",
+    "bypass": "held 1 h",
+    "outcome": "DELAYED",
+    "note": "admin grants wait 1 h, the person and security are alerted"
+  },
+  {
+    "technique": "T1584.002",
+    "name": "DNS hijack of own domain",
+    "tactic": "Resource Development",
+    "stolen": "same as bypass",
+    "bypass": "held 1 h",
+    "outcome": "DELAYED",
+    "note": ""
+  },
+  {
+    "technique": "T1534",
+    "name": "Internal Spearphishing (mass mail from a hijacked account)",
+    "tactic": "Lateral Movement",
+    "stolen": "same as bypass",
+    "bypass": "held 1 h",
+    "outcome": "DELAYED",
+    "note": ""
+  },
+  {
+    "technique": "T1195.002",
+    "name": "Compromise Software Supply Chain (publish skimmer)",
+    "tactic": "Initial Access",
+    "stolen": "integrity check denies",
+    "bypass": "refused at the CDN gate",
+    "outcome": "BLOCKED",
+    "note": ""
+  },
+  {
+    "technique": "T1059.007",
+    "name": "JavaScript injected via a trusted vendor (OptimJack)",
+    "tactic": "Execution",
+    "stolen": "-",
+    "bypass": "0 of 3 variants served",
+    "outcome": "BLOCKED",
+    "note": "pinned first-party copy; changes checked; strict CSP"
+  },
+  {
+    "technique": "T1199",
+    "name": "Trusted Relationship (vendor platform pushes code to all customers)",
+    "tactic": "Initial Access",
+    "stolen": "-",
+    "bypass": "2 of 188 customers",
+    "outcome": "CAPPED",
+    "note": "campaign detector freezes the indicator after 2 customers"
+  },
+  {
+    "technique": "T1070",
+    "name": "Indicator Removal (rewrite protected history)",
+    "tactic": "Defense Evasion",
+    "stolen": "DENY",
+    "bypass": "refused",
+    "outcome": "BLOCKED",
+    "note": "protected branches need 2 approvers at the Git gate"
+  },
+  {
+    "technique": "AML.T0051",
+    "name": "LLM Prompt Injection -> agent exfiltration (MITRE ATLAS)",
+    "tactic": "Exfiltration",
+    "stolen": "DENY/DENY/DENY, then DENY",
+    "bypass": "session cap also in key service",
+    "outcome": "BLOCKED",
+    "note": "out-of-task actions refused; 3 attempts revoke the session and alert the person"
+  },
+  {
+    "technique": "T1021",
+    "name": "Remote Services (lateral movement, LANL real red team)",
+    "tactic": "Lateral Movement",
+    "stolen": "374 of 691 logins stopped",
+    "bypass": "-",
+    "outcome": "DETECTED",
+    "note": "measured: 54% stopped by the device lock; 23/50 compromised users flagged at 5 alerts/day (supervised)"
+  },
+  {
+    "technique": "TA0009",
+    "name": "Insider data theft (CERT r2-r6.2, real labels)",
+    "tactic": "Collection",
+    "stolen": "179 of 187 insiders flagged",
+    "bypass": "-",
+    "outcome": "DETECTED",
+    "note": "novelty score, 5 reviews a day; graded against CERT's official insider list (answer files also name victims and email recipients); method chosen on r4-r5 only, held-out r2/r6: 9 of 11; budgets cap the rest"
+  },
+  {
+    "technique": "T1190",
+    "name": "Exploit Public-Facing Application",
+    "tactic": "Initial Access",
+    "stolen": "-",
+    "bypass": "-",
+    "outcome": "NOT COVERED",
+    "note": "a bug in the customer's app; we limit what the exploited identity can then take"
+  },
+  {
+    "technique": "T1203",
+    "name": "Exploitation for Client Execution",
+    "tactic": "Execution",
+    "stolen": "-",
+    "bypass": "-",
+    "outcome": "NOT COVERED",
+    "note": "browser/OS bugs; endpoint protection; we stop the delivering scripts"
+  },
+  {
+    "technique": "T1566",
+    "name": "Phishing (inbound)",
+    "tactic": "Initial Access",
+    "stolen": "-",
+    "bypass": "-",
+    "outcome": "NOT COVERED",
+    "note": "mail security; a phished login without the device gets nothing (T1078)"
+  },
+  {
+    "technique": "T1498",
+    "name": "Network Denial of Service",
+    "tactic": "Impact",
+    "stolen": "-",
+    "bypass": "-",
+    "outcome": "NOT COVERED",
+    "note": "DDoS protection; our gateway caps connections and rate"
+  },
+  {
+    "technique": "T1052",
+    "name": "Exfiltration Over Physical Medium (USB)",
+    "tactic": "Exfiltration",
+    "stolen": "-",
+    "bypass": "-",
+    "outcome": "NOT COVERED",
+    "note": "endpoint DLP; budgets cap what reached the laptop"
+  },
+  {
+    "technique": "T1113",
+    "name": "Screen Capture / reading what the person may see",
+    "tactic": "Collection",
+    "stolen": "-",
+    "bypass": "-",
+    "outcome": "NOT COVERED",
+    "note": "a legitimate viewer's own access; watermarking traces leaks"
+  }
+]

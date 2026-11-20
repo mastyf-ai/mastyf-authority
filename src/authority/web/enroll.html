@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mastyf Devices</title><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
+<body data-page="enroll"><main>
+<h1>Your devices</h1>
+<p class="sub">Data keys are only released to devices registered here. Adding one needs a device you already have, or two approvers.</p>
+<div class="card"><label for="apikey">Your API key</label><input id="apikey" type="password" autocomplete="off">
+<div class="row"><button class="primary" id="load">Show my devices</button></div><div class="msg" id="keymsg"></div></div>
+<div id="list"></div>
+<div class="card" id="add" hidden>
+<label for="devname">Name for this device</label><input id="devname" placeholder="e.g. work-laptop" maxlength="64">
+<div class="row"><button class="primary" id="begin">Add this device</button></div>
+<div id="step"></div><div class="msg" id="addmsg"></div></div>
+</main></body></html>

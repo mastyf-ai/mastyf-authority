@@ -1,0 +1,68 @@
+# Mastyf Authority break-it sandbox: a fake company ("Acme") behind the real components.
+#   cd sandbox && docker compose up -d --build   ->  credentials in sandbox/out/credentials.json
+# Researchers use only the two published ports: the gateway (decisions/grants) and the Acme CRM app (records).
+# The authority and the key service sit on an internal network with no published ports.
+name: mastyf-sandbox
+
+x-py: &py
+  image: mastyf-sandbox-py
+  pull_policy: never
+x-rs: &rs
+  image: mastyf-sandbox-rs
+  pull_policy: never
+
+services:
+  init:            # one-shot: keys, policy with secret bait ids, TLS cert, researcher credentials
+    <<: *py
+    build: { context: .., dockerfile: sandbox/Dockerfile.py }
+    command: ["python", "/sandbox/init.py"]
+    user: "0:0"
+    volumes: [cfg:/cfg, authstate:/authstate, ks:/ks, flags:/flags, appdata:/appdata, "${OUT_BIND:-./out}:/out"]
+    network_mode: none
+
+  keyservice:      # Rust: wrapped record keys, daily budgets, bait, journal
+    <<: *rs
+    build: { context: .., dockerfile: sandbox/Dockerfile.rust }
+    entrypoint: ["/usr/local/bin/mastyf-keyservice"]
+    command: ["--policy", "/cfg/policy.json", "--authority-key", "/cfg/authority.pub.pem",
+              "--state-dir", "/ks/state", "--init-kek", "--socket", "/ks/sock/ks.sock"]
+    volumes: [cfg:/cfg:ro, ks:/ks]
+    depends_on: { init: { condition: service_completed_successfully } }
+    network_mode: none            # reachable only through its Unix socket, shared with the app
+    restart: unless-stopped
+
+  authority:       # Python decision engine: rules + risk model, signed single-use grants
+    <<: *py
+    command: ["authority", "serve", "--policy", "/cfg/policy.json", "--model", "/app/artifacts/risk_model.json",
+              "--state", "/authstate", "--host", "0.0.0.0", "--port", "8740"]
+    environment: { AUTHORITY_CALLERS: /cfg/callers.json }
+    volumes: [cfg:/cfg:ro, authstate:/authstate]
+    networks: [internal]
+    depends_on: { init: { condition: service_completed_successfully } }
+    restart: unless-stopped
+
+  gateway:         # Rust front door: TLS 1.3, API keys, rate limits. Published.
+    <<: *rs
+    entrypoint: ["/usr/local/bin/mastyf-gateway"]
+    command: ["--listen", "0.0.0.0:8443", "--tls-cert", "/cfg/gateway.crt", "--tls-key", "/cfg/gateway.key",
+              "--callers", "/cfg/callers.json", "--upstream", "authority:8740", "--rate", "20", "--burst", "60"]
+    volumes: [cfg:/cfg:ro]
+    networks: [internal, public]
+    ports: ["127.0.0.1:8443:8443"]
+    depends_on: [authority]
+    restart: unless-stopped
+
+  app:             # "Acme CRM": turns a grant into decrypted records via the key service. Published.
+    <<: *py
+    command: ["python", "/sandbox/app.py"]
+    volumes: [ks:/ks, appdata:/appdata, flags:/flags]
+    networks: [public]
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on: [keyservice]
+    restart: unless-stopped
+
+networks:
+  internal: { internal: true }
+  public: {}
+
+volumes: { cfg: {}, authstate: {}, ks: {}, flags: {}, appdata: {} }

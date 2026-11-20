@@ -1,0 +1,109 @@
+{
+  "note": "synthetic data; numbers describe this simulation only",
+  "thresholds": {
+    "escalate_at": 0.5,
+    "deny_at": 0.9
+  },
+  "in_distribution": {
+    "attack_events": 378,
+    "benign_events": 47775,
+    "auroc": 0.9995,
+    "attack_event_recall_at_escalate": 0.9841,
+    "attack_event_recall_at_deny": 0.9762,
+    "incidents": 32,
+    "incidents_detected": 29,
+    "incident_detection_rate": 0.9062,
+    "median_hours_to_first_flag": 0.0,
+    "benign_false_flags_per_day": 0.068,
+    "benign_false_flag_rate": 0.0017,
+    "per_family_detection": {
+      "public_service_pivot": "7/7",
+      "bulk_exfil": "7/7",
+      "supply_chain_publish": "3/6",
+      "history_rewrite": "6/6",
+      "ransomware_staging": "6/6"
+    }
+  },
+  "leave_one_family_out": {
+    "public_service_pivot": {
+      "attack_events": 785,
+      "benign_events": 28665,
+      "auroc": 0.9984,
+      "attack_event_recall_at_escalate": 0.9707,
+      "attack_event_recall_at_deny": 0.1452,
+      "incidents": 20,
+      "incidents_detected": 20,
+      "incident_detection_rate": 1.0,
+      "median_hours_to_first_flag": 0.0,
+      "benign_false_flags_per_day": 0.028,
+      "benign_false_flag_rate": 0.0007,
+      "per_family_detection": {
+        "public_service_pivot": "20/20"
+      }
+    },
+    "bulk_exfil": {
+      "attack_events": 521,
+      "benign_events": 28725,
+      "auroc": 0.9985,
+      "attack_event_recall_at_escalate": 0.5086,
+      "attack_event_recall_at_deny": 0.096,
+      "incidents": 20,
+      "incidents_detected": 20,
+      "incident_detection_rate": 1.0,
+      "median_hours_to_first_flag": 0.0,
+      "benign_false_flags_per_day": 0.013,
+      "benign_false_flag_rate": 0.00035,
+      "per_family_detection": {
+        "bulk_exfil": "20/20"
+      }
+    },
+    "supply_chain_publish": {
+      "attack_events": 20,
+      "benign_events": 28681,
+      "auroc": 0.9761,
+      "attack_event_recall_at_escalate": 0.35,
+      "attack_event_recall_at_deny": 0.3,
+      "incidents": 20,
+      "incidents_detected": 7,
+      "incident_detection_rate": 0.35,
+      "median_hours_to_first_flag": 0.0,
+      "benign_false_flags_per_day": 0.022,
+      "benign_false_flag_rate": 0.00056,
+      "per_family_detection": {
+        "supply_chain_publish": "7/20"
+      }
+    },
+    "history_rewrite": {
+      "attack_events": 88,
+      "benign_events": 28780,
+      "auroc": 0.9999,
+      "attack_event_recall_at_escalate": 0.9659,
+      "attack_event_recall_at_deny": 0.9432,
+      "incidents": 20,
+      "incidents_detected": 20,
+      "incident_detection_rate": 1.0,
+      "median_hours_to_first_flag": 0.0,
+      "benign_false_flags_per_day": 0.01,
+      "benign_false_flag_rate": 0.00024,
+      "per_family_detection": {
+        "history_rewrite": "20/20"
+      }
+    },
+    "ransomware_staging": {
+      "attack_events": 215,
+      "benign_events": 28665,
+      "auroc": 0.9984,
+      "attack_event_recall_at_escalate": 0.8605,
+      "attack_event_recall_at_deny": 0.2651,
+      "incidents": 20,
+      "incidents_detected": 20,
+      "incident_detection_rate": 1.0,
+      "median_hours_to_first_flag": 0.0,
+      "benign_false_flags_per_day": 0.038,
+      "benign_false_flag_rate": 0.00094,
+      "per_family_detection": {
+        "ransomware_staging": "20/20"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+state/
+artifacts/*.pkl
+artifacts_train.log
+datasets/
+# never commit: downloaded datasets (licence-restricted; LANL token), caches, build output, runtime state
+artifacts/alert_cache/
+artifacts/unsup_cache/
+artifacts/*.cache
+rust/keyservice/target/
+*.journal
+*.pre-rotation
+*.rotating
+kek.b64
+*.key
+*.pem
+.env
+.DS_Store
+artifacts/*.log
+*.log

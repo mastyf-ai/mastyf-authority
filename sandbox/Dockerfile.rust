@@ -1,0 +1,10 @@
+# Key service + gateway for the sandbox (same source as production builds).
+FROM rust:1.90-slim-bookworm AS build
+WORKDIR /src
+COPY rust/keyservice/ .
+RUN cargo build --release --locked --bins
+
+FROM gcr.io/distroless/cc-debian12:nonroot
+COPY --from=build /src/target/release/mastyf-keyservice /usr/local/bin/mastyf-keyservice
+COPY --from=build /src/target/release/mastyf-gateway /usr/local/bin/mastyf-gateway
+USER 65532:65532

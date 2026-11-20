@@ -1,0 +1,948 @@
+{
+  "summary": {
+    "public_service_pivot": {
+      "runs": 6,
+      "benign_approvals_per_day": 0.36,
+      "benign_denied_total": 1101,
+      "video_incident": "Fugaku / RIKEN: entry via public status page, 3 days inside, 4,222 users' SSH keys",
+      "stopped_before_any_step_succeeded": 6,
+      "attack_steps_allowed": "0/188",
+      "attack_volume_allowed_pct": 0.0,
+      "median_hours_to_first_refusal": 0.0,
+      "attacks_never_refused": 0,
+      "attacker_frozen": "3/6"
+    },
+    "bulk_exfil": {
+      "runs": 6,
+      "benign_approvals_per_day": 0.24,
+      "benign_denied_total": 2,
+      "video_incident": "La Poste / Maileva: 20.9M names and addresses taken, disclosed ~2 months later",
+      "stopped_before_any_step_succeeded": 6,
+      "attack_steps_allowed": "0/138",
+      "attack_volume_allowed_pct": 0.0,
+      "median_hours_to_first_refusal": 0.0,
+      "attacks_never_refused": 0,
+      "attacker_frozen": "0/6"
+    },
+    "supply_chain_publish": {
+      "runs": 6,
+      "benign_approvals_per_day": 0.19,
+      "benign_denied_total": 2,
+      "video_incident": "Optimizely: vendor script turned skimmer on customer sites for 19 hours",
+      "stopped_before_any_step_succeeded": 6,
+      "attack_steps_allowed": "0/6",
+      "attack_volume_allowed_pct": 0.0,
+      "median_hours_to_first_refusal": 0.0,
+      "attacks_never_refused": 0,
+      "attacker_frozen": "0/6",
+      "skimmer_went_live": 0
+    },
+    "history_rewrite": {
+      "runs": 6,
+      "benign_approvals_per_day": 0.25,
+      "benign_denied_total": 1,
+      "video_incident": "PolinRider (GitHub): commit history rewritten to hide malicious code",
+      "stopped_before_any_step_succeeded": 6,
+      "attack_steps_allowed": "0/17",
+      "attack_volume_allowed_pct": 0.0,
+      "median_hours_to_first_refusal": 0.0,
+      "attacks_never_refused": 0,
+      "attacker_frozen": "0/6"
+    },
+    "ransomware_staging": {
+      "runs": 6,
+      "benign_approvals_per_day": 0.11,
+      "benign_denied_total": 194,
+      "video_incident": "Healthcare ransomware: 17 providers posted in one day",
+      "stopped_before_any_step_succeeded": 6,
+      "attack_steps_allowed": "0/71",
+      "attack_volume_allowed_pct": 0.0,
+      "median_hours_to_first_refusal": 0.0,
+      "attacks_never_refused": 0,
+      "attacker_frozen": "6/6"
+    },
+    "no_attack": {
+      "runs": 6,
+      "benign_approvals_per_day": 0.27,
+      "benign_denied_total": 2
+    }
+  },
+  "runs": [
+    {
+      "family": "public_service_pivot",
+      "seed": 900000,
+      "attack_steps": 52,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 1152,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1205,
+      "benign_escalated": 9,
+      "benign_denied": 278,
+      "benign_denied_examples": [
+        {
+          "identity": "human:carol",
+          "action": "repo.history_rewrite",
+          "reasons": [
+            "behaviour highly anomalous for human:carol (risk 0.99)"
+          ]
+        },
+        {
+          "identity": "svc:status-page",
+          "action": "data.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "svc:status-page",
+          "action": "data.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "public_service_pivot",
+      "seed": 900001,
+      "attack_steps": 10,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 6028,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1185,
+      "benign_escalated": 15,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "svc:ci-bot",
+          "action": "artifact.publish",
+          "reasons": [
+            "behaviour highly anomalous for svc:ci-bot (risk 0.93)"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "public_service_pivot",
+      "seed": 900002,
+      "attack_steps": 50,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 1148,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1190,
+      "benign_escalated": 11,
+      "benign_denied": 277,
+      "benign_denied_examples": [
+        {
+          "identity": "svc:ci-bot",
+          "action": "artifact.publish",
+          "reasons": [
+            "behaviour highly anomalous for svc:ci-bot (risk 0.93)"
+          ]
+        },
+        {
+          "identity": "svc:status-page",
+          "action": "data.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "svc:status-page",
+          "action": "data.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "public_service_pivot",
+      "seed": 900003,
+      "attack_steps": 9,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 5094,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1206,
+      "benign_escalated": 15,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "public_service_pivot",
+      "seed": 900004,
+      "attack_steps": 12,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 7604,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1200,
+      "benign_escalated": 7,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "svc:ci-bot",
+          "action": "artifact.publish",
+          "reasons": [
+            "behaviour highly anomalous for svc:ci-bot (risk 0.93)"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "public_service_pivot",
+      "seed": 900005,
+      "attack_steps": 55,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 1264,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1198,
+      "benign_escalated": 8,
+      "benign_denied": 544,
+      "benign_denied_examples": [
+        {
+          "identity": "svc:status-page",
+          "action": "data.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "svc:status-page",
+          "action": "data.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "svc:status-page",
+          "action": "data.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "bulk_exfil",
+      "seed": 901000,
+      "attack_steps": 12,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 79581,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1197,
+      "benign_escalated": 9,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "bulk_exfil",
+      "seed": 901001,
+      "attack_steps": 30,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 44965,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "ESCALATE:escalate",
+      "benign_actions": 1196,
+      "benign_escalated": 5,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "bulk_exfil",
+      "seed": 901002,
+      "attack_steps": 10,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 64362,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1196,
+      "benign_escalated": 7,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "bulk_exfil",
+      "seed": 901003,
+      "attack_steps": 30,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 223498,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1214,
+      "benign_escalated": 9,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "bulk_exfil",
+      "seed": 901004,
+      "attack_steps": 33,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 47690,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1182,
+      "benign_escalated": 6,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "human:alice",
+          "action": "data.export",
+          "reasons": [
+            "behaviour highly anomalous for human:alice (risk 1.00)"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "bulk_exfil",
+      "seed": 901005,
+      "attack_steps": 23,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 34974,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1184,
+      "benign_escalated": 8,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "svc:ci-bot",
+          "action": "artifact.publish",
+          "reasons": [
+            "behaviour highly anomalous for svc:ci-bot (risk 0.91)"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "supply_chain_publish",
+      "seed": 902000,
+      "attack_steps": 1,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:integrity",
+      "benign_actions": 1204,
+      "benign_escalated": 4,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "supply_chain_publish",
+      "seed": 902001,
+      "attack_steps": 1,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:integrity",
+      "benign_actions": 1197,
+      "benign_escalated": 9,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "supply_chain_publish",
+      "seed": 902002,
+      "attack_steps": 1,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:integrity",
+      "benign_actions": 1194,
+      "benign_escalated": 5,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "svc:ci-bot",
+          "action": "artifact.publish",
+          "reasons": [
+            "behaviour highly anomalous for svc:ci-bot (risk 0.93)"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "supply_chain_publish",
+      "seed": 902003,
+      "attack_steps": 1,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:integrity",
+      "benign_actions": 1191,
+      "benign_escalated": 3,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "supply_chain_publish",
+      "seed": 902004,
+      "attack_steps": 1,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:integrity",
+      "benign_actions": 1187,
+      "benign_escalated": 8,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "svc:ci-bot",
+          "action": "artifact.publish",
+          "reasons": [
+            "behaviour highly anomalous for svc:ci-bot (risk 0.93)"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "supply_chain_publish",
+      "seed": 902005,
+      "attack_steps": 1,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:integrity",
+      "benign_actions": 1203,
+      "benign_escalated": 5,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "history_rewrite",
+      "seed": 903000,
+      "attack_steps": 4,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 468,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1198,
+      "benign_escalated": 7,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "history_rewrite",
+      "seed": 903001,
+      "attack_steps": 2,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 381,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1197,
+      "benign_escalated": 7,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "history_rewrite",
+      "seed": 903002,
+      "attack_steps": 2,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 301,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1201,
+      "benign_escalated": 8,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "history_rewrite",
+      "seed": 903003,
+      "attack_steps": 5,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 684,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1225,
+      "benign_escalated": 9,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "human:carol",
+          "action": "repo.history_rewrite",
+          "reasons": [
+            "behaviour highly anomalous for human:carol (risk 0.91)"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "history_rewrite",
+      "seed": 903004,
+      "attack_steps": 2,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 129,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1192,
+      "benign_escalated": 6,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "history_rewrite",
+      "seed": 903005,
+      "attack_steps": 2,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 175,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": false,
+      "first_refusal_stage": "DENY:policy",
+      "benign_actions": 1214,
+      "benign_escalated": 8,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "ransomware_staging",
+      "seed": 904000,
+      "attack_steps": 12,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 128172,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1201,
+      "benign_escalated": 2,
+      "benign_denied": 37,
+      "benign_denied_examples": [
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "ransomware_staging",
+      "seed": 904001,
+      "attack_steps": 7,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 50654,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1206,
+      "benign_escalated": 7,
+      "benign_denied": 12,
+      "benign_denied_examples": [
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "ransomware_staging",
+      "seed": 904002,
+      "attack_steps": 12,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 166915,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1227,
+      "benign_escalated": 1,
+      "benign_denied": 47,
+      "benign_denied_examples": [
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "ransomware_staging",
+      "seed": 904003,
+      "attack_steps": 14,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 201859,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1201,
+      "benign_escalated": 0,
+      "benign_denied": 40,
+      "benign_denied_examples": [
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "process.exec",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "ransomware_staging",
+      "seed": 904004,
+      "attack_steps": 9,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 166818,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1170,
+      "benign_escalated": 1,
+      "benign_denied": 35,
+      "benign_denied_examples": [
+        {
+          "identity": "human:alice",
+          "action": "data.export",
+          "reasons": [
+            "behaviour highly anomalous for human:alice (risk 0.98)"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": "ransomware_staging",
+      "seed": 904005,
+      "attack_steps": 17,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 307768,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": 0.0,
+      "frozen": true,
+      "first_refusal_stage": "DENY:model",
+      "benign_actions": 1195,
+      "benign_escalated": 8,
+      "benign_denied": 23,
+      "benign_denied_examples": [
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        },
+        {
+          "identity": "human:bob",
+          "action": "secret.read",
+          "reasons": [
+            "identity frozen: 3 denied actions within one hour"
+          ]
+        }
+      ],
+      "live_script_is_skimmer": false,
+      "days_decided": 30.0
+    },
+    {
+      "family": null,
+      "seed": 905000,
+      "attack_steps": 0,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": null,
+      "frozen": false,
+      "first_refusal_stage": null,
+      "benign_actions": 1210,
+      "benign_escalated": 8,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "svc:ci-bot",
+          "action": "artifact.publish",
+          "reasons": [
+            "behaviour highly anomalous for svc:ci-bot (risk 0.93)"
+          ]
+        }
+      ],
+      "days_decided": 30.0
+    },
+    {
+      "family": null,
+      "seed": 905001,
+      "attack_steps": 0,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": null,
+      "frozen": false,
+      "first_refusal_stage": null,
+      "benign_actions": 1194,
+      "benign_escalated": 9,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "days_decided": 30.0
+    },
+    {
+      "family": null,
+      "seed": 905002,
+      "attack_steps": 0,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": null,
+      "frozen": false,
+      "first_refusal_stage": null,
+      "benign_actions": 1198,
+      "benign_escalated": 11,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "days_decided": 30.0
+    },
+    {
+      "family": null,
+      "seed": 905003,
+      "attack_steps": 0,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": null,
+      "frozen": false,
+      "first_refusal_stage": null,
+      "benign_actions": 1186,
+      "benign_escalated": 8,
+      "benign_denied": 1,
+      "benign_denied_examples": [
+        {
+          "identity": "human:carol",
+          "action": "repo.history_rewrite",
+          "reasons": [
+            "behaviour highly anomalous for human:carol (risk 0.97)"
+          ]
+        }
+      ],
+      "days_decided": 30.0
+    },
+    {
+      "family": null,
+      "seed": 905004,
+      "attack_steps": 0,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": null,
+      "frozen": false,
+      "first_refusal_stage": null,
+      "benign_actions": 1220,
+      "benign_escalated": 4,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "days_decided": 30.0
+    },
+    {
+      "family": null,
+      "seed": 905005,
+      "attack_steps": 0,
+      "attack_steps_allowed": 0,
+      "attack_volume_total": 0,
+      "attack_volume_allowed": 0,
+      "first_refusal_hours": null,
+      "frozen": false,
+      "first_refusal_stage": null,
+      "benign_actions": 1186,
+      "benign_escalated": 8,
+      "benign_denied": 0,
+      "benign_denied_examples": [],
+      "days_decided": 30.0
+    }
+  ]
+}
