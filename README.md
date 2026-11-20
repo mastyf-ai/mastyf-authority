@@ -66,11 +66,9 @@ Every high-impact action is checked **before** it runs: bulk reads of secrets, d
 
 Each dot is one person in a company of 2,000. For every person and every kind of action, the model asks three plain questions:
 
-| | Question | Adds weight when |
-|---|---|---|
-| **01** | Done this before? | This person has never done it |
-| **02** | How many people here do it? | Few people do |
-| **03** | More than ever before? | They beat their own record, for things fewer than 1 in 5 people do |
+1. **Done this before?** Something this person has *never* done adds weight.
+2. **How many people here do it?** The *fewer* people who do it, the more weight.
+3. **More than ever before?** Beating their *own record* adds weight, but only for things fewer than 1 in 5 people do.
 
 It learns from each company's own history and uses **no attack examples**. Each morning a reviewer sees the five strangest person-days.
 
