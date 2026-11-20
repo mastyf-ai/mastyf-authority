@@ -373,6 +373,8 @@ def scim_from_env(auth: Authority):
         if e.name != "authority.scim":
             raise
         raise SystemExit("SCIM sync is part of Mastyf Authority Enterprise (https://www.mastyf.ai/authority).")
+    from .licence import require
+    require("authority_scim", "SCIM sync")
     directory = Directory(path)
     auth.directory = directory
     source = getattr(auth, "policy_source", None) or auth.policy.raw

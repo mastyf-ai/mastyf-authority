@@ -67,6 +67,10 @@ fn handle(svc: &Svc, line: &str, fake_clock: bool) -> Value {
                     Some(Err(e)) => json!({"ok": false, "reason": format!("bad action: {e}")}),
                     None => json!({"ok": false, "reason": "missing action"}),
                 },
+                Some("kek_status") => {
+                    let (current, previous, unopenable) = ks.kek_status();
+                    json!({"ok": true, "current": current, "previous": previous, "unopenable": unopenable})
+                }
                 Some("new_record_key") => {
                     match (req.get("record_id").and_then(Value::as_str), req.get("class").and_then(Value::as_str)) {
                         (Some(r), Some(c)) => json!({"ok": true, "dek": URL_SAFE_NO_PAD.encode(ks.new_record_key(r, c))}),
@@ -396,7 +400,21 @@ fn main() {
                 STATE_LOCK.set(lock_state_dir(dir)).ok();
             }
             let kek = load_kek(&args, dir);
-            let ks = KeyService::with_kek(policy, check, approvers, kek);
+            let mut ks = KeyService::with_kek(policy, check, approvers, kek);
+            // online KEK rotation: the previous KEK still opens old record keys while they are re-wrapped
+            let prev: Vec<String> = ["file", "command"].iter().filter_map(|k| {
+                arg(&args, &format!("--previous-kek-{k}")).map(|v| vec![format!("--kek-{k}"), v])
+            }).flatten().collect();
+            if !prev.is_empty() {
+                let mut pa = vec![String::new()];
+                pa.extend(prev);
+                let old = load_kek(&pa, dir);
+                if old == kek {
+                    die("--previous-kek is the same as the current KEK");
+                }
+                ks = ks.with_previous_kek(old);
+                eprintln!("mastyf-keyservice: online KEK rotation: re-wrapping record keys under the new KEK in the background");
+            }
             attach_registries(&ks, &args, outside_allowance);
             let (j, events) = Journal::open(&dir.join("keyservice.journal")).unwrap_or_else(|e| die(&e));
             let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
@@ -494,6 +512,31 @@ fn main() {
                     }
                     Err(e) => eprintln!("mastyf-keyservice: ALERT device registry unreadable, keeping previous: {e}"),
                 }
+            }
+        });
+    }
+    if state_dir.is_some() && args.iter().any(|a| a.starts_with("--previous-kek-")) {
+        // re-wrap in small journaled batches so requests keep flowing; done when nothing is left
+        let r = Arc::clone(&ks);
+        std::thread::spawn(move || {
+            let mut total = 0usize;
+            loop {
+                match r.ks.rewrap_step(2000) {
+                    Ok((n, more)) => {
+                        total += n;
+                        if !more {
+                            let (cur, old, bad) = r.ks.kek_status();
+                            eprintln!("mastyf-keyservice: KEK rotation done: re-wrapped {total}; {cur} under the new KEK, \
+                                       {old} under the previous, {bad} unopenable. Restart without --previous-kek-* when convenient.");
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("mastyf-keyservice: KEK re-wrap batch failed, retrying: {e}");
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
             }
         });
     }

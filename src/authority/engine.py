@@ -338,7 +338,11 @@ class Authority:
 
         risk = None
         model_deny = False
-        if self.model is not None:
+        # policy model.skip: action types the behavioural layers do not judge. Default: sign-ins, which device
+        # binding and ask-once destinations judge instead (on real enterprise sign-in logs the behavioural
+        # layers interrupted people ~31 times a day; device binding alone, 0.2 - see PILOTS.md)
+        behavioural = a.action_type not in self.policy.raw.get("model", {}).get("skip", [])
+        if self.model is not None and behavioural:
             try:
                 risk = self.model.score(self.state.features(a))
             except Exception:  # noqa: BLE001
@@ -346,7 +350,7 @@ class Authority:
         if risk is None and a.action_type in SENSITIVE:
             escalations.append("risk model unavailable for a sensitive action")
         # novelty: first-time behaviour weighted by how rare it is here, plus slow build-up
-        nov, nov_why = self.novelty.risk(a)
+        nov, nov_why = self.novelty.risk(a) if behavioural else (0.0, [])
         self.review.note(a.identity, a.ts, nov, nov_why)
         if nov > (risk or 0.0):
             risk = round(nov, 4)

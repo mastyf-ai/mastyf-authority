@@ -137,7 +137,11 @@
   },
   "model": {
     "escalate_at": 0.5,
-    "deny_at": 0.9
+    "deny_at": 0.9,
+    "skip": [
+      "auth.login"
+    ],
+    "_comment_skip": "action types the behavioural model and novelty do not judge; sign-ins are judged by device binding and ask-once destinations"
   },
   "grant_ttl_seconds": 60,
   "approval_ttl_seconds": 900,

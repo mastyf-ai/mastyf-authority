@@ -762,6 +762,8 @@ pub struct KeyService {
     pub policy: BudgetPolicy,
     approvers: HashMap<String, VerifyingKey>,
     kek: Aes256Gcm,
+    /// The previous KEK during an online rotation: opens old record keys until they are re-wrapped.
+    old_kek: Option<Aes256Gcm>,
     inner: Mutex<Inner>,
 }
 
@@ -785,9 +787,85 @@ impl KeyService {
             policy,
             approvers,
             kek: Aes256Gcm::new_from_slice(&k).expect("32-byte key"),
+            old_kek: None,
             inner: Mutex::new(Inner { journal: None, devices: None, cases: None, verifier, ledger: HashMap::new(),
                                       seen: HashMap::new(), frozen: HashMap::new(), new_ledger: HashMap::new(), wrapped: HashMap::new() }),
         }
+    }
+
+    /// Online KEK rotation: also accept record keys wrapped under the previous KEK while they are
+    /// re-wrapped in the background (`rewrap_step`). New keys are always wrapped under the current KEK.
+    pub fn with_previous_kek(mut self, k: [u8; 32]) -> Self {
+        self.old_kek = Some(Aes256Gcm::new_from_slice(&k).expect("32-byte key"));
+        self
+    }
+
+    /// A record's data key: current KEK first, then the previous one during a rotation. AES-GCM
+    /// authenticates the record id, so a wrong KEK fails closed; it never yields a wrong key.
+    /// The flag is true when only the previous KEK opened it.
+    fn open_blob(&self, rid: &str, blob: &[u8]) -> Option<(Vec<u8>, bool)> {
+        if blob.len() < 28 {
+            return None;
+        }
+        let nonce = Nonce::from_slice(&blob[..12]);
+        let payload = || Payload { msg: &blob[12..], aad: rid.as_bytes() };
+        if let Ok(d) = self.kek.decrypt(nonce, payload()) {
+            return Some((d, false));
+        }
+        self.old_kek.as_ref().and_then(|o| o.decrypt(nonce, payload()).ok()).map(|d| (d, true))
+    }
+
+    fn wrap_blob(&self, rid: &str, dek: &[u8]) -> Vec<u8> {
+        let mut nonce = [0u8; 12];
+        OsRng.fill_bytes(&mut nonce);
+        let ct = self.kek.encrypt(Nonce::from_slice(&nonce), Payload { msg: dek, aad: rid.as_bytes() }).expect("encrypt");
+        let mut blob = nonce.to_vec();
+        blob.extend(ct);
+        blob
+    }
+
+    /// Record keys under (the current KEK, the previous KEK, neither). "Neither" must stay 0.
+    pub fn kek_status(&self) -> (usize, usize, usize) {
+        let inner = self.inner.lock().unwrap();
+        let mut c = (0, 0, 0);
+        for (rid, (_, blob)) in inner.wrapped.iter() {
+            match self.open_blob(rid, blob) {
+                Some((_, false)) => c.0 += 1,
+                Some((_, true)) => c.1 += 1,
+                None => c.2 += 1,
+            }
+        }
+        c
+    }
+
+    /// Re-wrap up to `max` record keys still under the previous KEK, journaled before they replace
+    /// the old wrapping (a crash mid-way leaves every key openable with both KEKs configured).
+    /// Returns (re-wrapped now, whether more may remain).
+    pub fn rewrap_step(&self, max: usize) -> Result<(usize, bool), String> {
+        if self.old_kek.is_none() || max == 0 {
+            return Ok((0, false));
+        }
+        let mut inner = self.inner.lock().unwrap();
+        let mut todo: Vec<(String, String, Vec<u8>)> = vec![];
+        for (rid, (cls, blob)) in inner.wrapped.iter() {
+            if let Some((dek, true)) = self.open_blob(rid, blob) {
+                todo.push((rid.clone(), cls.clone(), dek));
+                if todo.len() > max {
+                    break;
+                }
+            }
+        }
+        let more = todo.len() > max;
+        let mut done = 0;
+        for (rid, cls, dek) in todo.into_iter().take(max) {
+            let blob = self.wrap_blob(&rid, &dek);
+            Self::journal(&mut inner, json!({"e": "wrap", "rid": rid, "cls": cls, "blob": URL_SAFE_NO_PAD.encode(&blob)}))?;
+            inner.wrapped.insert(rid, (cls, blob));
+            done += 1;
+        }
+        drop(inner);
+        self.commit()?;
+        Ok((done, more))
     }
 
     /// Create and store (wrapped) a fresh data key for a record. Returns the DEK so the
@@ -869,6 +947,13 @@ impl KeyService {
                 keep.push(ev);
             }
         }
+        // a record re-wrapped by an online KEK rotation keeps only its latest wrapping
+        let mut seen_rid = HashSet::new();
+        let mut keep: Vec<Value> = keep.into_iter().rev()
+            .filter(|ev| ev.get("e").and_then(Value::as_str) != Some("wrap")
+                || seen_rid.insert(ev["rid"].as_str().unwrap_or("").to_string()))
+            .collect();
+        keep.reverse();
         let n = keep.len();
         j.rewrite(&keep)?;
         let _ = self.durable.set(j.durability()?);
@@ -901,8 +986,7 @@ impl KeyService {
         let inner = self.inner.lock().unwrap();
         match inner.wrapped.iter().next() {
             None => true,
-            Some((rid, (_, blob))) => blob.len() >= 28 && self.kek
-                .decrypt(Nonce::from_slice(&blob[..12]), Payload { msg: &blob[12..], aad: rid.as_bytes() }).is_ok(),
+            Some((rid, (_, blob))) => self.open_blob(rid, blob).is_some(),
         }
     }
 
@@ -967,14 +1051,7 @@ impl KeyService {
     pub fn new_record_key(&self, record_id: &str, class: &str) -> Vec<u8> {
         let mut dek = vec![0u8; 32];
         OsRng.fill_bytes(&mut dek);
-        let mut nonce = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce);
-        let ct = self
-            .kek
-            .encrypt(Nonce::from_slice(&nonce), Payload { msg: &dek, aad: record_id.as_bytes() })
-            .expect("encrypt");
-        let mut blob = nonce.to_vec();
-        blob.extend(ct);
+        let blob = self.wrap_blob(record_id, &dek);
         let mut inner = self.inner.lock().unwrap();
         if Self::journal(&mut inner, json!({"e": "wrap", "rid": record_id, "cls": class,
                                             "blob": URL_SAFE_NO_PAD.encode(&blob)})).is_err() {
@@ -1201,10 +1278,9 @@ impl KeyService {
                 if *c != class || blob.len() < 12 {
                     return Release::no(format!("record {rid} not in class {class}"), Some(&class));
                 }
-                let dek = match self.kek.decrypt(Nonce::from_slice(&blob[..12]),
-                                                 Payload { msg: &blob[12..], aad: rid.as_bytes() }) {
-                    Ok(d) => d,
-                    Err(_) => return Release::no("key unwrap failed", Some(&class)),
+                let dek = match self.open_blob(rid, blob) {
+                    Some((d, _)) => d,
+                    None => return Release::no("key unwrap failed", Some(&class)),
                 };
                 let v = match device_kex {
                     Some(k) => binding::wrap_to_device(&dek, k, rid),

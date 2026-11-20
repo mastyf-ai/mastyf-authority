@@ -45,6 +45,19 @@ Most security tries to spot attackers. **Authority assumes some will get in, and
 | 🕵️ **Security researcher** | [Break it](#break-it): a fake company on the real components, with flags and safe harbour | 10 min |
 | 🤝 **Contributor** | [CONTRIBUTING.md](CONTRIBUTING.md): one focused change, one test, one CLA comment | — |
 
+## Pilot results
+
+> [!NOTE]
+> Not customer pilots yet: our own account, a real organisation's public logs, and real public attack logs. Full method and caveats in **[PILOTS.md](PILOTS.md)**.
+
+| | Data | Interruptions | Attacks |
+|---|---|---|---|
+| **Pilot 0** · Mastyf itself | Our GitHub security log, 5 months | **0.33 a day** | Flagged every OAuth client secret created |
+| **Pilot 1** · A real enterprise | LANL sign-ins: 300 employees + 94 compromised accounts | **0.20 per person per day** | **60 of 94** compromised accounts caught at the **first** malicious login |
+| **Attack replay** | 71 real attack log sets (CloudTrail, Okta, GitHub) | n/a | **55 of 62** attacks stopped, escalated or held |
+
+Pilot 1 changed the product: on raw sign-ins the behavioural model interrupted people about 31 times a day, so sign-ins are now judged by device binding (0.20 a day), and the model is kept for high-impact actions.
+
 ## How it decides
 
 Every high-impact action is checked **before** it runs: bulk reads of secrets, data exports, script and package publishes, Git history rewrites, backup deletions, mass writes and AI-agent tool calls. Rules go first, and a behavioural model comes last. **The model can escalate or deny. It can never grant.**
@@ -93,6 +106,13 @@ It learns from each company's own history and uses **no attack examples**. Each 
 ## Quick start
 
 ```bash
+pip install mastyf-authority                                   # the authority, from PyPI
+docker pull ghcr.io/mastyf-ai/mastyf-authority-keyservice:v0.1.0   # the Rust key service + gateway
+```
+
+Or from source:
+
+```bash
 git clone https://github.com/mastyf-ai/mastyf-authority && cd mastyf-authority
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e '.[dev]'
@@ -111,6 +131,20 @@ pytest -q                                       # Python and Rust tests, includi
 ```
 
 To deploy, use `deploy/`: the Dockerfiles, a Caddy TLS proxy and the systemd units. Run the authority behind TLS only, and keep the key service on a separate host.
+
+Container images for every release: `ghcr.io/mastyf-ai/mastyf-authority-{authority,keyservice,sandbox-py,sandbox-rs}`.
+</details>
+
+<details>
+<summary><b>Rotate the master key with no downtime</b></summary>
+
+Start the key service with the **new** key-encryption key and the **previous** one:
+
+```bash
+mastyf-keyservice ... --kek-file new.b64 --previous-kek-file old.b64
+```
+
+Record keys under the previous KEK keep working immediately, while a background thread re-wraps them in small journalled batches. `{"op": "kek_status"}` reports how many remain. When it reaches 0, restart without `--previous-kek-file` and retire the old key. With high availability, do this one node at a time and no request is ever refused.
 </details>
 
 <details>

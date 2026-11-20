@@ -8,15 +8,50 @@ from pathlib import Path
 
 
 
-def _enterprise(feature: str, module: str):
-    """Import a Mastyf Authority Enterprise add-on, or exit with a clear message in the open edition."""
+def _enterprise(feature: str, module: str, licence_feature: str | None = None):
+    """Import a Mastyf Authority Enterprise add-on, or exit with a clear message in the open edition.
+    In the Enterprise package, also check that the licence includes `licence_feature`."""
     import importlib
     try:
-        return importlib.import_module(f"authority.{module}")
+        mod = importlib.import_module(f"authority.{module}")
     except ModuleNotFoundError as e:
         if e.name != f"authority.{module}":
             raise
         raise SystemExit(f"{feature} is part of Mastyf Authority Enterprise (https://www.mastyf.ai/authority).")
+    if licence_feature:
+        importlib.import_module("authority.licence").require(licence_feature, feature)
+    return mod
+
+
+def _connector_feature(source: str) -> str:
+    return "authority_connector_github" if source in ("github", "github-security") else "authority_connectors"
+
+
+def _model_path(name: str) -> str:
+    """`production` means the licensed production model shipped inside the Enterprise package."""
+    if name != "production":
+        return name
+    from importlib import resources
+    p = resources.files("authority") / "models" / "production.json"
+    if not p.is_file():
+        raise SystemExit("The production model is part of Mastyf Authority Enterprise (https://www.mastyf.ai/authority).")
+    return str(p)
+
+
+def _load_model(name: str):
+    import json as _json
+    from .model import RiskModel
+    path = _model_path(name)
+    if not Path(path).exists():
+        return None
+    with open(path) as f:
+        head = f.read(4096)
+    if '"licence_feature"' in head or name == "production":
+        stamp = _json.loads(Path(path).read_text()).get("licence_feature", "authority_model")
+        _enterprise("The production risk model", "licence")
+        import importlib
+        importlib.import_module("authority.licence").require(stamp, "The production risk model")
+    return RiskModel.load(path)
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="authority")
@@ -135,12 +170,13 @@ def main(argv: list[str] | None = None) -> None:
         from .learn import learn_data_budgets, learn_gate_budgets
         with open(a.input) as f:
             acts = ([Action.from_dict(json.loads(x)) for x in f if x.strip()] if a.source == "actions"
-                    else list(_enterprise("Log connectors (CloudTrail, Okta, GitHub)", "connectors").read(a.source, f)))
+                    else list(_enterprise("Log connectors (CloudTrail, Okta, GitHub)", "connectors",
+                                         _connector_feature(a.source)).read(a.source, f)))
         pol = json.loads(Path(a.policy).read_text())
         classes = pol["data_budgets"]["classes"]
         if a.teams:
             from .learn import learn_teams
-            team_map = _enterprise("Team learning from the identity provider", "scim").team_map
+            team_map = _enterprise("Team learning from the identity provider", "scim", "authority_scim").team_map
             team_of = team_map(json.loads(Path(a.teams).read_text()), pol.get("teams", {}))
             learned = learn_teams(acts, classes, team_of)
             for t, spec in learned.items():
@@ -156,6 +192,9 @@ def main(argv: list[str] | None = None) -> None:
         Path(a.out).write_text(json.dumps(pol, indent=2))
         print(f"learned budgets for {len(pol['data_budgets']['budgets'])} identities from {len(acts)} actions -> {a.out}")
     elif a.cmd == "shadow":
+        _enterprise("Shadow mode", "shadow", "authority_shadow")
+        if a.source != "actions":
+            _enterprise("Log connectors (CloudTrail, Okta, GitHub)", "connectors", _connector_feature(a.source))
         shadow_main = _enterprise("Shadow mode", "shadow").main
         rep = shadow_main(a.source, a.input, a.policy, a.model, a.out, a.learn_days)
         print(json.dumps({k: rep[k] for k in ("actions_learned_from", "actions_scored", "verdicts",
@@ -170,7 +209,7 @@ def main(argv: list[str] | None = None) -> None:
         from .server import serve
         policy = Policy.load(a.policy)
         signer = Signer.load_or_create(Path(a.state) / "signing_key.pem")
-        model = RiskModel.load(a.model) if Path(a.model).exists() else None
+        model = _load_model(a.model)
         import os
 
         from cryptography.hazmat.primitives.serialization import load_pem_public_key
