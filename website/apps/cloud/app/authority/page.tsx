@@ -6,6 +6,7 @@ import { SiteFooter } from '@/components/SiteFooter';
 import { AttackSimulator } from '@/components/authority/AttackSimulator';
 import { AuthorityFlow } from '@/components/authority/AuthorityFlow';
 import { RiskModelDemo } from '@/components/authority/RiskModelDemo';
+import { ThinkingFilm } from '@/components/authority/ThinkingFilm';
 import '@/app/attack-lab/attack-lab.css';
 import { LayerExplorer } from '@/components/authority/LayerExplorer';
 import { CeilingCalculator } from '@/components/authority/CeilingCalculator';
@@ -107,6 +108,18 @@ export default async function AuthorityPage() {
             </p>
           </div>
           <RiskModelDemo />
+        </section>
+
+        <section id="thinking" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Watch · 3 min · three real cases</p>
+            <h2 className="auth-h2">How the model thinks, in dots and flashes</h2>
+            <p className="auth-lead">
+              Two thousand people, one dot each. Watch the model catch Jack on day one and Laurel on day twenty-one, then
+              miss Murphy completely, and see what stops Murphy anyway. Jump to any moment from the list.
+            </p>
+          </div>
+          <ThinkingFilm />
         </section>
 
         <section id="try" className="section auth-section">
