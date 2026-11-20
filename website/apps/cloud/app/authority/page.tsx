@@ -44,7 +44,7 @@ export default async function AuthorityPage() {
       <SiteNav session={!!session} />
       <main className="page-main auth-page">
         <header className="page-head auth-hero">
-          <p className="eyebrow eyebrow--dot">Research preview · Mastyf Authority</p>
+          <p className="eyebrow eyebrow--dot">Research preview · Open source · Mastyf Authority</p>
           <h1 className="page-head__title">Every break‑in gets a ceiling.</h1>
           <p className="page-head__lead">
             Most security tries to spot attackers. Authority assumes some will get in, and makes the worst they can do a
@@ -53,6 +53,7 @@ export default async function AuthorityPage() {
           </p>
           <div className="page-head__actions">
             <a href="#flow" className="btn btn-primary">See it work<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
+            <a href="https://github.com/mastyf-ai/mastyf-authority" className="btn" target="_blank" rel="noopener noreferrer">Read the code on GitHub</a>
             <a href="#benchmarks" className="btn">See the benchmarks</a>
             <Link href="/pilot" className="link-icon">Join the pilot<ArrowRight size={13} strokeWidth={1.75} aria-hidden="true" /></Link>
           </div>
@@ -197,7 +198,9 @@ export default async function AuthorityPage() {
 
         <p className="auth-footnote auth-preview-note">
           Research preview. Results measured on test deployments and public datasets (CERT insider threat, LANL,
-          AgentDojo), not yet on production traffic.
+          AgentDojo), not yet on production traffic. The core is open source under the AGPL-3.0:{' '}
+          <a href="https://github.com/mastyf-ai/mastyf-authority" target="_blank" rel="noopener noreferrer">github.com/mastyf-ai/mastyf-authority</a>
+          . Enterprise add-ons and commercial licences: <Link href="/pilot">talk to us</Link>.
         </p>
       </main>
       <SiteFooter />
