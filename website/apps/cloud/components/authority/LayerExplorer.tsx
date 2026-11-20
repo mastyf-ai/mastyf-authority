@@ -13,7 +13,7 @@ const LAYERS = [
     id: 'engine', title: 'Decision engine',
     what: 'Before anything sensitive happens, the request is checked against rules and against what is normal for that person: first-time behaviour, unusual volume, odd destinations.',
     why: 'Catches misuse early and asks a second person when something is unusual.',
-    stat: '168 of 231', statLabel: 'real insiders flagged (CERT), no attack examples used',
+    stat: '179 of 187', statLabel: 'real insiders flagged (CERT), no attack examples used',
   },
   {
     id: 'vault', title: 'Key vault',

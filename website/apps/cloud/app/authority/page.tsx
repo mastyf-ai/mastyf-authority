@@ -24,7 +24,7 @@ const STATS = [
   { n: '5,000', l: 'records a day at most, even with malware on the laptop' },
   { n: '0 of 12', l: 'mass deletions executed in a ransomware run' },
   { n: '1.6%', l: 'of worst-case AI agent hijacks succeed' },
-  { n: '168 / 231', l: 'real insiders flagged, no attack examples used' },
+  { n: '179 / 187', l: 'real insiders flagged, no attack examples used' },
   { n: '0', l: 'known vulnerabilities in dependencies' },
 ];
 

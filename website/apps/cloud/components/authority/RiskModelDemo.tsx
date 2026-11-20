@@ -144,7 +144,7 @@ export function RiskModelDemo() {
       </div>
 
       <dl className="rm__results">
-        <div><dt>Real insiders flagged</dt><dd><strong>168 of 231</strong> CERT insiders at 5 alerts a day, no attack examples (previous model: 72)</dd></div>
+        <div><dt>Real insiders flagged</dt><dd><strong>179 of 187</strong> CERT insiders at 5 alerts a day, no attack examples; 9 of 11 on releases held back for testing</dd></div>
         <div><dt>Hackers moving between machines</dt><dd><strong>23 of 50</strong> compromised accounts flagged on LANL’s real red-team data (was 10)</dd></div>
         <div><dt>Extra approvals</dt><dd><strong>&lt; 1 a day</strong> across a simulated company of 9 people and services</dd></div>
         <div><dt>Speed</dt><dd><strong>0.07 ms</strong> per decision</dd></div>
