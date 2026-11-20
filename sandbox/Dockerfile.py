@@ -1,5 +1,5 @@
 # Python authority + the sandbox's init script and fake CRM app.
-FROM python:3.12-slim
+FROM python:3.15-slim
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src/ src/
