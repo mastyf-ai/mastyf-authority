@@ -421,7 +421,7 @@
 .ap__price { display: flex; align-items: baseline; gap: 6px; margin: var(--s-4) 0; }
 .ap__price strong { font-family: var(--font-display); font-size: 1.9rem; letter-spacing: var(--track-display); }
 .ap__price span { color: var(--ink-3); font-size: var(--fs-meta); }
-.ap__card ul { display: grid; gap: var(--s-2); margin: 0 0 var(--s-5); padding: 0; list-style: none; flex: 1; }
+.ap__card ul { display: grid; gap: var(--s-2); align-content: start; margin: 0 0 var(--s-5); padding: 0; list-style: none; flex: 1; }
 .ap__card li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; color: var(--ink-2); font-size: var(--fs-meta); line-height: 1.45; }
 .ap__card li svg { margin-top: 2px; color: var(--accent); }
 .ap__cta .btn { width: 100%; justify-content: center; }
@@ -430,3 +430,6 @@
 .ap__report span { color: var(--ink-2); font-size: var(--fs-meta); line-height: 1.5; }
 .ap__report-cta { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .ap__fine { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: 1.5; }
+@media (min-width: 1150px) { .ap__grid--five { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.ap__cta .checkout { display: grid; gap: 8px; }
+.ap__cta .checkout .btn { width: 100%; justify-content: center; }
