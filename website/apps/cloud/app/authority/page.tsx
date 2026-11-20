@@ -62,6 +62,29 @@ export default async function AuthorityPage() {
           </ul>
         </header>
 
+        <section id="film" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Watch · 4 min</p>
+            <h2 className="auth-h2">Last week&apos;s breaches, rewound</h2>
+            <p className="auth-lead">
+              A short film: the real attacks from one week in the news, how each one happened, and how a damage ceiling
+              would have capped it. Includes the three that were bugs we would not have stopped.
+            </p>
+          </div>
+          <figure className="auth-film">
+            <video
+              className="auth-film__video"
+              controls
+              playsInline
+              preload="metadata"
+              poster="/media/authority-launch-poster.jpg"
+            >
+              <source src="/media/authority-launch.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          </figure>
+        </section>
+
         <section id="flow" className="section auth-section">
           <header className="sec-head sec-head--split">
             <div>
