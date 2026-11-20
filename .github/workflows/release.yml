@@ -41,6 +41,17 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/mastyf-authority-${{ matrix.name }}:${{ github.ref_name }}
             ghcr.io/${{ github.repository_owner }}/mastyf-authority-${{ matrix.name }}:latest
+  pypi:
+    # Trusted publishing (no stored token). One-time setup on pypi.org: add a pending publisher for project
+    # "mastyf-authority": owner mastyf-ai, repository mastyf-authority, workflow release.yml, environment pypi.
+    needs: [python]
+    runs-on: ubuntu-latest
+    environment: { name: pypi, url: "https://pypi.org/project/mastyf-authority/" }
+    permissions: { id-token: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: dist, path: dist/ }
+      - uses: pypa/gh-action-pypi-publish@release/v1
   release:
     needs: [python, images]
     runs-on: ubuntu-latest

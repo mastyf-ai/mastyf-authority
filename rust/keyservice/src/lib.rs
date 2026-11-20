@@ -34,11 +34,11 @@ use sha2::{Digest, Sha256};
 
 pub const DAY: f64 = 86400.0;
 pub const READ_ACTIONS: [&str; 3] = ["data.read", "data.export", "secret.read"];
-pub const ACTION_TYPES: [&str; 19] = [
+pub const ACTION_TYPES: [&str; 20] = [
     "auth.login", "data.read", "data.export", "secret.read", "artifact.publish", "repo.push",
     "repo.history_rewrite", "process.exec", "network.egress", "file.write_bulk", "backup.delete",
     "payment.send", "email.bulk_send", "dns.change", "key.delete", "storage.delete", "account.delete",
-    "permission.grant", "agent.session",
+    "permission.grant", "agent.session", "security.control_change",
 ];
 const MAX_STR: usize = 1024;
 const MAX_COUNT: u64 = 1_000_000_000_000;

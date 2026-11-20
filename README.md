@@ -9,6 +9,8 @@
   <img alt="Status: research preview" src="https://img.shields.io/badge/status-research%20preview-8a8378?style=flat-square">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-4f4a42?style=flat-square">
   <img alt="Rust key service" src="https://img.shields.io/badge/key%20service-Rust-4f4a42?style=flat-square">
+  <a href="https://github.com/mastyf-ai/mastyf-authority/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/mastyf-ai/mastyf-authority/actions/workflows/tests.yml/badge.svg"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/mastyf-ai/mastyf-authority"><img alt="OpenSSF Scorecard" src="https://api.securityscorecards.dev/projects/github.com/mastyf-ai/mastyf-authority/badge"></a>
   <a href="SECURITY.md"><img alt="Break it: safe harbour" src="https://img.shields.io/badge/break%20it-safe%20harbour-e3b453?style=flat-square"></a>
 </p>
 
@@ -34,28 +36,29 @@ Most security tries to spot attackers. **Authority assumes some will get in, and
 > [!NOTE]
 > **Research preview (v0.1).** These results come from simulations and public datasets, not yet from a customer's production systems. [What the numbers do and don't mean ↓](#read-the-results-with-care)
 
+## Start here
+
+| I'm a… | Start with | Time |
+|---|---|---|
+| 🛡️ **Security lead** | [Free Damage Ceiling Report](https://www.mastyf.ai/authority#report): the most a stolen login can take from your company, from 30 days of read-only logs · [Pricing](https://www.mastyf.ai/authority#pricing) | 48 h |
+| 🧑‍💻 **Engineer** | [Quick start](#quick-start): install, train a model, replay real incidents | 2 min |
+| 🕵️ **Security researcher** | [Break it](#break-it): a fake company on the real components, with flags and safe harbour | 10 min |
+| 🤝 **Contributor** | [CONTRIBUTING.md](CONTRIBUTING.md): one focused change, one test, one CLA comment | — |
+
 ## How it decides
 
 Every high-impact action is checked **before** it runs: bulk reads of secrets, data exports, script and package publishes, Git history rewrites, backup deletions, mass writes and AI-agent tool calls. Rules go first, and a behavioural model comes last. **The model can escalate or deny. It can never grant.**
 
-```mermaid
-flowchart TD
-    A([Action requested]) --> B{Known identity,<br/>well-formed request?}
-    B -- no --> X[⛔ DENY]
-    B -- yes --> C{Touches a<br/>bait record?}
-    C -- yes --> XF[⛔ DENY + freeze account]
-    C -- no --> D{Policy allows it,<br/>approved destination?}
-    D -- no --> X
-    D -- yes --> E{Over the daily limit,<br/>or an always-ask action?}
-    E -- yes --> Q[🟡 ESCALATE<br/>a second person approves]
-    E -- no --> F{Risk model score}
-    F -- "0.9 or more" --> X
-    F -- "0.5 to 0.9" --> Q
-    F -- "below 0.5" --> G[✅ ALLOW<br/>signed single-use grant, valid 60 s]
-    Q -- approved --> G
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/decide-dark.svg">
+  <img alt="How Authority decides: six checks before any high-impact action runs. Who is asking, bait records, rules, limits, the risk model (which can only ask or refuse), then a signed single-use grant." src="assets/decide-light.svg" width="100%">
+</picture>
 
-Then, **wherever the data lives**, the Rust key service releases each record's key only within that person's daily budget. So even if everything in front of it is compromised, the loss is capped.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/architecture-dark.svg">
+  <img alt="Where Authority sits: requesters, then the gateway, the authority and the key service, in front of your encrypted data. Even if everything before the key service is hacked, the ceiling holds." src="assets/architecture-light.svg" width="100%">
+</picture>
+
 
 ## How the model thinks, in dots and flashes
 
@@ -166,7 +169,7 @@ Rules and safe harbour are in **[SECURITY.md](SECURITY.md)**. Report privately w
 |---|---|
 | use, study or change Authority for yourself or your company | ✅ Free under the [AGPL v3](LICENSE) |
 | run a **modified** version as a service other people use | Share your changes with those users, under the AGPL v3 |
-| can't accept AGPL terms, or want to embed Authority in a product you sell | Get a [commercial licence](COMMERCIAL.md) |
-| want to contribute | 💛 Welcome. Accept the one-click [CLA](CLA.md); you keep your copyright ([how to contribute](CONTRIBUTING.md)) |
+| can't accept AGPL terms, or want to embed Authority in a product you sell | Get a [commercial licence](COMMERCIAL.md) · [see pricing](https://www.mastyf.ai/authority#pricing) |
+| want to contribute | 💛 Welcome. Sign the [CLA](CLA.md) with one comment; you keep your copyright ([how to contribute](CONTRIBUTING.md)) |
 
 <sub>Copyright © 2026 Rudraneel Das (Mastyf). "Mastyf" and "Mastyf Authority" are trade marks of Mastyf; the licence does not grant rights to use them. The `LICENSE` file is the official, unmodified AGPL v3 text.</sub>

@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="432" viewBox="0 0 1280 432" role="img" aria-labelledby="t d">
+<title id="t">How Authority decides</title>
+<desc id="d">Six checks before any high-impact action runs: identity, bait records, rules, limits, the risk model (which can only ask or refuse), then a signed single-use grant.</desc>
+<style>.pulse{animation:run 5s linear infinite}@keyframes run{0%{transform:translateX(0);opacity:0}6%{opacity:1}90%{opacity:1}100%{transform:translateX(1212px);opacity:0}}
+@media (prefers-reduced-motion: reduce){.pulse{animation:none;opacity:0}}</style>
+<rect width="1280" height="432" rx="18" fill="#f7f2ea"/>
+<text x="24" y="46" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="14" letter-spacing="3" fill="#8a8378">HOW IT DECIDES · EVERY HIGH-IMPACT ACTION, BEFORE IT RUNS</text>
+<line x1="24" y1="92" x2="1256" y2="92" stroke="#ddd3c3" stroke-width="2" stroke-dasharray="2 6"/>
+<circle class="pulse" cx="34" cy="92" r="5" fill="#b5832a"/>
+<g>
+<rect x="24.0" y="118" width="190.3" height="210" rx="16" fill="#efe8dc" stroke="#ddd3c3"/>
+<circle cx="54.0" cy="152" r="15" fill="none" stroke="#b5832a" stroke-width="1.6"/>
+<text x="54.0" y="157" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="14" fill="#b5832a">1</text>
+<text x="42.0" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#22201c">Who is asking?</text>
+<text x="42.0" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">Known identity,</text>
+<text x="42.0" y="255" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">well-formed request</text>
+<rect x="38.0" y="278" width="162.3" height="32" rx="8" fill="rgba(194,85,74,0.12)" stroke="#c2554a" stroke-opacity="0.55"/>
+<text x="119.2" y="299" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="12.5" letter-spacing="1.2" font-weight="700" fill="#c2554a">DENY</text>
+</g><path d="M216.3 152 l14 0" stroke="#8a8378" stroke-width="1.5"/><path d="M226.3 147 l5 5 l-5 5" fill="none" stroke="#8a8378" stroke-width="1.5"/><g>
+<rect x="232.3" y="118" width="190.3" height="210" rx="16" fill="#efe8dc" stroke="#ddd3c3"/>
+<circle cx="262.3" cy="152" r="15" fill="none" stroke="#b5832a" stroke-width="1.6"/>
+<text x="262.3" y="157" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="14" fill="#b5832a">2</text>
+<text x="250.3" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#22201c">Bait touched?</text>
+<text x="250.3" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">Planted records no</text>
+<text x="250.3" y="255" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">real screen shows</text>
+<rect x="246.3" y="278" width="162.3" height="32" rx="8" fill="rgba(194,85,74,0.12)" stroke="#c2554a" stroke-opacity="0.55"/>
+<text x="327.5" y="299" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="12.5" letter-spacing="1.2" font-weight="700" fill="#c2554a">DENY + FREEZE</text>
+</g><path d="M424.7 152 l14 0" stroke="#8a8378" stroke-width="1.5"/><path d="M434.7 147 l5 5 l-5 5" fill="none" stroke="#8a8378" stroke-width="1.5"/><g>
+<rect x="440.7" y="118" width="190.3" height="210" rx="16" fill="#efe8dc" stroke="#ddd3c3"/>
+<circle cx="470.7" cy="152" r="15" fill="none" stroke="#b5832a" stroke-width="1.6"/>
+<text x="470.7" y="157" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="14" fill="#b5832a">3</text>
+<text x="458.7" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#22201c">Allowed at all?</text>
+<text x="458.7" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">Rules, data budgets,</text>
+<text x="458.7" y="255" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">destination lists</text>
+<rect x="454.7" y="278" width="162.3" height="32" rx="8" fill="rgba(194,85,74,0.12)" stroke="#c2554a" stroke-opacity="0.55"/>
+<text x="535.8" y="299" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="12.5" letter-spacing="1.2" font-weight="700" fill="#c2554a">DENY</text>
+</g><path d="M633.0 152 l14 0" stroke="#8a8378" stroke-width="1.5"/><path d="M643.0 147 l5 5 l-5 5" fill="none" stroke="#8a8378" stroke-width="1.5"/><g>
+<rect x="649.0" y="118" width="190.3" height="210" rx="16" fill="#efe8dc" stroke="#ddd3c3"/>
+<circle cx="679.0" cy="152" r="15" fill="none" stroke="#b5832a" stroke-width="1.6"/>
+<text x="679.0" y="157" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="14" fill="#b5832a">4</text>
+<text x="667.0" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#22201c">Over the line?</text>
+<text x="667.0" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">Daily limits,</text>
+<text x="667.0" y="255" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">always-ask actions</text>
+<rect x="663.0" y="278" width="162.3" height="32" rx="8" fill="rgba(227,180,83,0.14)" stroke="#b5832a" stroke-opacity="0.55"/>
+<text x="744.2" y="299" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="12.5" letter-spacing="1.2" font-weight="700" fill="#b5832a">ASK A 2ND PERSON</text>
+</g><path d="M841.3 152 l14 0" stroke="#8a8378" stroke-width="1.5"/><path d="M851.3 147 l5 5 l-5 5" fill="none" stroke="#8a8378" stroke-width="1.5"/><g>
+<rect x="857.3" y="118" width="190.3" height="210" rx="16" fill="#efe8dc" stroke="#ddd3c3"/>
+<circle cx="887.3" cy="152" r="15" fill="none" stroke="#b5832a" stroke-width="1.6"/>
+<text x="887.3" y="157" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="14" fill="#b5832a">5</text>
+<text x="875.3" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#22201c">Unusual?</text>
+<text x="875.3" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">Risk model can only</text>
+<text x="875.3" y="255" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">ask or refuse</text>
+<rect x="871.3" y="278" width="162.3" height="32" rx="8" fill="rgba(227,180,83,0.14)" stroke="#b5832a" stroke-opacity="0.55"/>
+<text x="952.5" y="299" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="12.5" letter-spacing="1.2" font-weight="700" fill="#b5832a">ASK  /  DENY</text>
+</g><path d="M1049.7 152 l14 0" stroke="#8a8378" stroke-width="1.5"/><path d="M1059.7 147 l5 5 l-5 5" fill="none" stroke="#8a8378" stroke-width="1.5"/><g>
+<rect x="1065.7" y="118" width="190.3" height="210" rx="16" fill="#efe8dc" stroke="#ddd3c3"/>
+<circle cx="1095.7" cy="152" r="15" fill="none" stroke="#b5832a" stroke-width="1.6"/>
+<text x="1095.7" y="157" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="14" fill="#b5832a">6</text>
+<text x="1083.7" y="204" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="20" font-weight="700" fill="#22201c">Signed grant</text>
+<text x="1083.7" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">Single use, bound to</text>
+<text x="1083.7" y="255" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="15" fill="#4f4a42">the exact action, 60 s</text>
+<rect x="1079.7" y="278" width="162.3" height="32" rx="8" fill="rgba(63,155,107,0.14)" stroke="#3f9b6b" stroke-opacity="0.55"/>
+<text x="1160.8" y="299" text-anchor="middle" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="12.5" letter-spacing="1.2" font-weight="700" fill="#3f9b6b">ALLOW</text>
+</g>
+<text x="24" y="380" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="17" fill="#4f4a42">Rules run first. The behavioural model runs last and <tspan font-weight="700" fill="#22201c">can never grant</tspan>: a missing or failing model makes sensitive actions ask instead.</text>
+<text x="24" y="408" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="17" fill="#4f4a42">Then the key service releases each record's key only within that person's daily limit, so the ceiling holds even if the engine is hacked.</text>
+</svg>

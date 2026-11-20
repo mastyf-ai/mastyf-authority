@@ -101,7 +101,9 @@
     }
   },
   "always_escalate": [
-    "backup.delete"
+    "backup.delete",
+    "security.control_change",
+    "storage.delete"
   ],
   "destinations": {
     "allow": [

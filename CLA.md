@@ -10,7 +10,7 @@
 | ✅ **You keep your copyright.** | This is a licence, not a transfer of ownership. |
 | 🔁 **Mastyf may license your contribution** | under the AGPL v3 and under commercial terms. That's what keeps the open edition funded. |
 | 🛡️ **You promise it's yours to give** | it's your original work, or third-party code is clearly marked with its licence. |
-| 🖱️ **One click, once** | the CLA bot asks on your first pull request. |
+| ✍️ **One comment, once** | the CLA bot asks on your first pull request; you reply with one sentence. |
 
 <details>
 <summary><b>Read the full agreement</b></summary>
@@ -86,6 +86,6 @@ This Agreement is governed by the laws of India. The courts at **Kolkata, West B
 
 ---
 
-**How you accept:** the CLA bot comments on your first pull request. Reply as it asks, or click "I agree". That acceptance is recorded with your GitHub username and the date, and it is a valid electronic contract under section 10A of the Information Technology Act, 2000.
+**How you accept:** on your first pull request, a bot asks you to sign. Reply with exactly: "I have read the CLA Document and I hereby sign the CLA". Your GitHub username, the date and the pull request are recorded in this repository (branch `cla-signatures`). That acceptance is a valid electronic contract under section 10A of the Information Technology Act, 2000.
 
 </details>

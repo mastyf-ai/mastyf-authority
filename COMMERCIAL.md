@@ -42,6 +42,8 @@ flowchart LR
     C --> D[Switch on<br/>enforcement]
 ```
 
+**Pricing:** Team ₹14,999 a month (up to 50 people), Business ₹49,999 a month (up to 250 people), Enterprise on a custom contract. Yearly plans save 17%. **[Buy or compare plans →](https://www.mastyf.ai/authority#pricing)**
+
 <p align="center">
   <a href="https://www.mastyf.ai/pilot"><img alt="Talk to us about Enterprise or a commercial licence" src="https://img.shields.io/badge/Enterprise%20or%20commercial%20licence-talk%20to%20us%20%E2%86%92-e3b453?style=for-the-badge"></a>
 </p>

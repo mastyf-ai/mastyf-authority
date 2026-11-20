@@ -11,7 +11,7 @@ Thank you for helping. **Bug reports, tests, attacks that break things and clear
 flowchart LR
     A[1. Fork and branch] --> B[2. Change + test<br/><code>pytest -q</code>]
     B --> C[3. Open a pull request]
-    C --> D[4. Accept the CLA<br/>one click, first PR only]
+    C --> D[4. Sign the CLA<br/>one comment, first PR only]
     D --> E[✅ Review and merge]
 ```
 

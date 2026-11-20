@@ -29,6 +29,8 @@ ACTION_TYPES = (
     "permission.grant",
     # AI agent session start (agents.py)
     "agent.session",
+    # weakening a security control: logging, MFA, identity providers, guardrails, branch protection (always asks)
+    "security.control_change",
 )
 
 # The risk model's one-hot features cover these (fixed, so adding action types never invalidates a
@@ -51,6 +53,7 @@ SENSITIVE = frozenset(
         "storage.delete",
         "account.delete",
         "permission.grant",
+        "security.control_change",
     }
 )
 
