@@ -228,7 +228,7 @@ export function AuthorityPricing({ signedIn }: { signedIn: boolean }) {
       ) : null}
 
       <p className="ap__fine">
-        Prices in Indian rupees. Prepaid for the period you choose, with no auto-renewal. Research preview: paid plans
+        Prices in Indian rupees. Prepaid for the period you choose, with no auto-renewal. Full refund within 7 days of a first purchase (<Link href="/refunds">refund policy</Link>). Research preview: paid plans
         start in shadow mode, so nothing is blocked until you switch enforcement on together with us.
       </p>
     </div>
