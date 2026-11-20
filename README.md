@@ -62,10 +62,7 @@ Every high-impact action is checked **before** it runs: bulk reads of secrets, d
 
 ## How the model thinks, in dots and flashes
 
-<table>
-<tr>
-<td width="300" valign="top"><img src="assets/jack-lights-up.gif" alt="A field of 2,000 dots, one per person. One dot lights up gold: Jack, logged into a colleague's computer." width="300"></td>
-<td>
+<img src="assets/jack-lights-up.gif" alt="A field of 2,000 dots, one per person. One dot lights up gold: Jack, logged into a colleague's computer." width="260" align="right">
 
 Each dot is one person in a company of 2,000. For every person and every kind of action, the model asks three plain questions:
 
@@ -79,9 +76,7 @@ It learns from each company's own history and uses **no attack examples**. Each 
 
 ▶ **[Watch the 3-minute film with chapters](https://www.mastyf.ai/authority#thinking)**: three real cases, one of which the model misses, and what stops it anyway.
 
-</td>
-</tr>
-</table>
+<br clear="right">
 
 ## What's inside
 
