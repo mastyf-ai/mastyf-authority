@@ -404,3 +404,29 @@
 .os__card strong { font-size: 1.05rem; }
 .os__card span { color: var(--ink-2); font-size: var(--fs-meta); line-height: 1.5; }
 .os__card code { overflow-x: auto; padding: 6px 10px; border-radius: var(--r); background: var(--bg); border: 1px solid var(--line); font-family: var(--font-code); font-size: 0.78rem; white-space: nowrap; }
+
+/* ------------------------------------------------------------ pricing */
+.ap { display: grid; gap: var(--auth-gap); }
+.ap__toggle { justify-self: start; display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--bg-sunken); }
+.ap__toggle button { padding: 8px 16px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--ink-2); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
+.ap__toggle button[aria-checked='true'] { background: var(--bg); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.12); font-weight: 600; }
+.ap__grid { display: grid; gap: var(--auth-gap); }
+@media (min-width: 700px) { .ap__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1150px) { .ap__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.ap__card { position: relative; display: flex; flex-direction: column; padding: var(--s-5); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-sunken); }
+.ap__card--hi { border-color: var(--accent-line); background: var(--accent-soft); box-shadow: 0 10px 40px -20px color-mix(in srgb, var(--accent) 60%, transparent); }
+.ap__badge { position: absolute; top: -11px; left: var(--s-5); margin: 0; padding: 2px 10px; border-radius: var(--r-pill); background: var(--accent); color: var(--bg); font-family: var(--font-code); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.ap__card h3 { margin: 0; font-family: var(--font-display); font-size: 1.35rem; letter-spacing: var(--track-display); }
+.ap__who { margin: 4px 0 0; color: var(--ink-3); font-size: var(--fs-meta); }
+.ap__price { display: flex; align-items: baseline; gap: 6px; margin: var(--s-4) 0; }
+.ap__price strong { font-family: var(--font-display); font-size: 1.9rem; letter-spacing: var(--track-display); }
+.ap__price span { color: var(--ink-3); font-size: var(--fs-meta); }
+.ap__card ul { display: grid; gap: var(--s-2); margin: 0 0 var(--s-5); padding: 0; list-style: none; flex: 1; }
+.ap__card li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; color: var(--ink-2); font-size: var(--fs-meta); line-height: 1.45; }
+.ap__card li svg { margin-top: 2px; color: var(--accent); }
+.ap__cta .btn { width: 100%; justify-content: center; }
+.ap__report { display: flex; flex-wrap: wrap; gap: var(--s-4); align-items: center; justify-content: space-between; padding: var(--s-4) var(--s-5); border: 1px dashed var(--accent-line); border-radius: var(--r-lg); }
+.ap__report > div:first-child { display: grid; gap: 4px; max-width: 70ch; }
+.ap__report span { color: var(--ink-2); font-size: var(--fs-meta); line-height: 1.5; }
+.ap__report-cta { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.ap__fine { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: 1.5; }

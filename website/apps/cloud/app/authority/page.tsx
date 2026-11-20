@@ -8,6 +8,7 @@ import { AuthorityFlow } from '@/components/authority/AuthorityFlow';
 import { RiskModelDemo } from '@/components/authority/RiskModelDemo';
 import { ThinkingFilm } from '@/components/authority/ThinkingFilm';
 import { CeilingAudit, OpenSourceCard } from '@/components/authority/CeilingAudit';
+import { AuthorityPricing } from '@/components/authority/AuthorityPricing';
 import '@/app/attack-lab/attack-lab.css';
 import { LayerExplorer } from '@/components/authority/LayerExplorer';
 import { CeilingCalculator } from '@/components/authority/CeilingCalculator';
@@ -54,6 +55,7 @@ export default async function AuthorityPage() {
           </p>
           <div className="page-head__actions">
             <a href="#report" className="btn btn-primary">Get your free ceiling report<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
+            <a href="#pricing" className="btn">Pricing</a>
             <a href="#flow" className="btn">See it work</a>
             <a href="https://github.com/mastyf-ai/mastyf-authority" className="btn" target="_blank" rel="noopener noreferrer">Read the code on GitHub</a>
             <a href="#benchmarks" className="btn">See the benchmarks</a>
@@ -197,6 +199,18 @@ export default async function AuthorityPage() {
             <div><dt>Failover</dt><dd>~5–7 s, nothing lost; any one of three referees can fail</dd></div>
             <div><dt>Throughput</dt><dd>~5,500 decisions/s through the front door, 99% in 14 ms</dd></div>
           </dl>
+        </section>
+
+        <section id="pricing" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Pricing</p>
+            <h2 className="auth-h2">Free to run yourself. Paid when you want us in it with you.</h2>
+            <p className="auth-lead">
+              The open-source core is free forever. Paid plans add the connectors, the production model, the
+              shadow-mode pilot and our time, so you see what Authority would have stopped before it blocks anything.
+            </p>
+          </div>
+          <AuthorityPricing signedIn={!!session} />
         </section>
 
         <section id="open-source" className="section auth-section">
