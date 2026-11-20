@@ -360,3 +360,47 @@
 .tf__fact { margin-top: 2px; font-family: var(--font-code); font-size: 0.72rem; letter-spacing: 0.02em; color: var(--ink-3); }
 .tf__step.is-cur .tf__fact { color: var(--accent); }
 .tf__note { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: 1.5; }
+
+/* ------------------------------------------------------------ damage ceiling report (offer) */
+.ca { display: grid; gap: var(--auth-gap); align-items: start; }
+@media (min-width: 1000px) { .ca { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); } }
+.ca__sample { margin: 0; }
+.ca__offer, .ca__sample { padding: clamp(18px, 3vw, 32px); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-sunken); }
+.ca__offer { border-color: var(--accent-line); background: var(--accent-soft); }
+.ca__kicker { display: flex; gap: 8px; align-items: center; margin: 0; color: var(--accent); font-family: var(--font-code); font-size: var(--fs-label); letter-spacing: var(--track-label); text-transform: uppercase; }
+.ca__gets { display: grid; gap: var(--s-3); margin: var(--s-5) 0 0; padding: 0; list-style: none; }
+.ca__gets li { display: grid; grid-template-columns: 20px 1fr; gap: var(--s-3); align-items: start; color: var(--ink); line-height: 1.45; }
+.ca__gets svg { margin-top: 3px; color: var(--accent); }
+.ca__how { display: grid; gap: var(--s-2); margin: var(--s-6) 0 0; }
+.ca__how div { display: grid; grid-template-columns: 28px 1fr; gap: var(--s-3); align-items: baseline; color: var(--ink-2); font-size: var(--fs-meta); line-height: 1.45; }
+.ca__how strong { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--accent-line); color: var(--accent); font-family: var(--font-code); font-size: 0.75rem; }
+.ca__cta { display: flex; flex-wrap: wrap; gap: var(--s-4); align-items: center; margin: var(--s-6) 0 0; }
+.ca__price { color: var(--ink-2); font-size: var(--fs-meta); }
+.ca__price strong { color: var(--ink); }
+.ca__proof { margin: var(--s-5) 0 0; padding-top: var(--s-4); border-top: 1px solid var(--accent-line); color: var(--ink-2); font-size: var(--fs-meta); line-height: 1.55; }
+.ca__sample figcaption { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); justify-content: space-between; align-items: baseline; margin-bottom: var(--s-4); font-weight: 600; }
+.ca__tag { color: var(--ink-3); font-family: var(--font-code); font-size: var(--fs-label); font-weight: 400; letter-spacing: 0.02em; }
+.ca__table { display: grid; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--bg); }
+.ca__row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.1fr); gap: var(--s-3); padding: var(--s-3) var(--s-4); border-top: 1px solid var(--line); align-items: center; font-size: var(--fs-meta); }
+.ca__row:first-child { border-top: 0; }
+.ca__row--head { color: var(--ink-3); font-family: var(--font-code); font-size: var(--fs-label); letter-spacing: var(--track-label); text-transform: uppercase; background: var(--bg-sunken); }
+.ca__row code { font-family: var(--font-code); font-size: 0.8rem; color: var(--ink); }
+.ca__row small { display: block; margin-top: 2px; color: var(--ink-3); font-size: 0.72rem; }
+.ca__bad { color: var(--ink-2); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ink-3) 60%, transparent); }
+.ca__good { color: var(--accent); font-weight: 600; }
+.ca__foot { margin: var(--s-4) 0 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: 1.5; }
+@media (max-width: 560px) {
+  .ca__row { grid-template-columns: 1fr 1fr; }
+  .ca__row > :first-child { grid-column: 1 / -1; }
+  .ca__row--head > :first-child { display: none; }
+}
+
+/* ------------------------------------------------------------ open source cards */
+.os { display: grid; gap: var(--auth-gap); }
+@media (min-width: 900px) { .os { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.os__card { display: grid; gap: var(--s-2); align-content: start; padding: var(--s-5); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-sunken); color: var(--ink); text-decoration: none; transition: border-color var(--t) var(--ease), transform var(--t) var(--ease); }
+.os__card:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+.os__card svg { color: var(--accent); }
+.os__card strong { font-size: 1.05rem; }
+.os__card span { color: var(--ink-2); font-size: var(--fs-meta); line-height: 1.5; }
+.os__card code { overflow-x: auto; padding: 6px 10px; border-radius: var(--r); background: var(--bg); border: 1px solid var(--line); font-family: var(--font-code); font-size: 0.78rem; white-space: nowrap; }

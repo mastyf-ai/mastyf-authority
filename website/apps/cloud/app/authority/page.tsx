@@ -7,6 +7,7 @@ import { AttackSimulator } from '@/components/authority/AttackSimulator';
 import { AuthorityFlow } from '@/components/authority/AuthorityFlow';
 import { RiskModelDemo } from '@/components/authority/RiskModelDemo';
 import { ThinkingFilm } from '@/components/authority/ThinkingFilm';
+import { CeilingAudit, OpenSourceCard } from '@/components/authority/CeilingAudit';
 import '@/app/attack-lab/attack-lab.css';
 import { LayerExplorer } from '@/components/authority/LayerExplorer';
 import { CeilingCalculator } from '@/components/authority/CeilingCalculator';
@@ -52,7 +53,8 @@ export default async function AuthorityPage() {
             tested by attacking it.
           </p>
           <div className="page-head__actions">
-            <a href="#flow" className="btn btn-primary">See it work<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
+            <a href="#report" className="btn btn-primary">Get your free ceiling report<ArrowRight size={14} strokeWidth={2} aria-hidden="true" /></a>
+            <a href="#flow" className="btn">See it work</a>
             <a href="https://github.com/mastyf-ai/mastyf-authority" className="btn" target="_blank" rel="noopener noreferrer">Read the code on GitHub</a>
             <a href="#benchmarks" className="btn">See the benchmarks</a>
             <Link href="/pilot" className="link-icon">Join the pilot<ArrowRight size={13} strokeWidth={1.75} aria-hidden="true" /></Link>
@@ -63,6 +65,19 @@ export default async function AuthorityPage() {
             ))}
           </ul>
         </header>
+
+        <section id="report" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">For security teams · free for our first 10 companies</p>
+            <h2 className="auth-h2">Find out the most a stolen login can take from your company</h2>
+            <p className="auth-lead">
+              Your board, your auditors and your insurer all ask the same question: if one account is stolen, how bad
+              can it get? Send us 30 days of read-only logs and get the answer, per account, in 48 hours, with the
+              limits that would cap it.
+            </p>
+          </div>
+          <CeilingAudit />
+        </section>
 
         <section id="film" className="section auth-section">
           <div className="auth-section__head">
@@ -182,6 +197,18 @@ export default async function AuthorityPage() {
             <div><dt>Failover</dt><dd>~5–7 s, nothing lost; any one of three referees can fail</dd></div>
             <div><dt>Throughput</dt><dd>~5,500 decisions/s through the front door, 99% in 14 ms</dd></div>
           </dl>
+        </section>
+
+        <section id="open-source" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Open source · research preview</p>
+            <h2 className="auth-h2">Don&apos;t trust us. Read it, run it, break it.</h2>
+            <p className="auth-lead">
+              Everything that sets the ceiling is open source under the AGPL-3.0: the decision engine, the risk model,
+              the key vault and its limits. Security you can&apos;t inspect is a promise. This is code.
+            </p>
+          </div>
+          <OpenSourceCard />
         </section>
 
         <section id="limits" className="section auth-section">
