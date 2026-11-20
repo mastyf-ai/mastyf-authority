@@ -433,3 +433,16 @@
 @media (min-width: 1150px) { .ap__grid--five { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 .ap__cta .checkout { display: grid; gap: 8px; }
 .ap__cta .checkout .btn { width: 100%; justify-content: center; }
+
+/* ------------------------------------------------------------ pilot results */
+.pr { display: grid; gap: var(--auth-gap); }
+.pr__grid { display: grid; gap: var(--auth-gap); }
+@media (min-width: 900px) { .pr__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.pr__card { display: grid; align-content: start; gap: 6px; padding: var(--s-5); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--bg-sunken); }
+.pr__kicker { margin: 0; color: var(--ink-3); font-family: var(--font-code); font-size: var(--fs-label); letter-spacing: var(--track-label); text-transform: uppercase; }
+.pr__big { margin: var(--s-2) 0 0; font-family: var(--font-display); font-size: 2.6rem; line-height: 1; letter-spacing: var(--track-display); color: var(--accent); }
+.pr__unit { margin: 0; color: var(--ink); font-weight: 600; }
+.pr__note { margin: 0; color: var(--ink-2); font-size: var(--fs-meta); }
+.pr__data { margin: var(--s-3) 0 0; padding-top: var(--s-3); border-top: 1px solid var(--line); color: var(--ink-3); font-size: var(--fs-meta); line-height: 1.45; }
+.pr__lesson { margin: 0; padding: var(--s-4) var(--s-5); border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: var(--r); color: var(--ink-2); line-height: 1.55; }
+.pr__honest { margin: 0; color: var(--ink-3); font-size: var(--fs-meta); line-height: 1.55; }

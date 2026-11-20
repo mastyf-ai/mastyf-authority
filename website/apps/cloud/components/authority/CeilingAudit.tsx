@@ -44,7 +44,7 @@ export function CeilingAudit() {
         </div>
         <p className="ca__proof">
           We ran it on our own GitHub account first: 755 security events over 5 months. With ask-once approvals it
-          would have interrupted us 0.35 times a day, and it flagged every OAuth client secret we generated.
+          would have interrupted us 0.33 times a day, and it flagged every OAuth client secret we generated.
         </p>
       </div>
 
@@ -92,6 +92,59 @@ export function OpenSourceCard() {
         <strong>Enterprise and commercial licence</strong>
         <span>Log connectors, shadow-mode pilots, SCIM, leak tracing, hosted cloud, support. Talk to us.</span>
       </Link>
+    </div>
+  );
+}
+
+const PILOTS = [
+  {
+    kicker: 'Pilot 0 · Mastyf itself',
+    data: 'Our own GitHub security log, 5 months',
+    big: '0.33',
+    unit: 'interruptions a day',
+    note: 'Flagged every OAuth client secret we created.',
+  },
+  {
+    kicker: 'Pilot 1 · A real enterprise',
+    data: "Los Alamos National Laboratory's public sign-in logs: 300 employees and 94 compromised accounts",
+    big: '60 of 94',
+    unit: 'compromised accounts caught at the first malicious login',
+    note: 'At 0.20 interruptions per person per day.',
+  },
+  {
+    kicker: 'Attack replay',
+    data: '71 real attack log sets from AWS CloudTrail, Okta and GitHub (Splunk attack_data)',
+    big: '55 of 62',
+    unit: 'attacks stopped, escalated or held',
+    note: '4 of the 7 misses had already been blocked by Okta.',
+  },
+];
+
+export function PilotResults() {
+  return (
+    <div className="pr">
+      <div className="pr__grid">
+        {PILOTS.map((p) => (
+          <article key={p.kicker} className="pr__card">
+            <p className="pr__kicker">{p.kicker}</p>
+            <p className="pr__big">{p.big}</p>
+            <p className="pr__unit">{p.unit}</p>
+            <p className="pr__note">{p.note}</p>
+            <p className="pr__data">{p.data}</p>
+          </article>
+        ))}
+      </div>
+      <p className="pr__lesson">
+        <strong>What Pilot 1 changed:</strong> on raw sign-ins, the behavioural model would have interrupted each person
+        about 31 times a day. Sign-ins are now judged by device binding (0.20 a day), and the model is kept for
+        high-impact actions like exports, secrets and deletions.
+      </p>
+      <p className="pr__honest">
+        Not customer pilots yet: our own account, a real organisation&apos;s public logs, and public attack logs. Method,
+        caveats and every variant we measured:{' '}
+        <a href="https://github.com/mastyf-ai/mastyf-authority/blob/main/PILOTS.md" target="_blank" rel="noopener noreferrer">PILOTS.md</a>.
+        Want yours? The <a href="#report">free Damage Ceiling Report</a> is the same pilot on 30 days of your logs.
+      </p>
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { AttackSimulator } from '@/components/authority/AttackSimulator';
 import { AuthorityFlow } from '@/components/authority/AuthorityFlow';
 import { RiskModelDemo } from '@/components/authority/RiskModelDemo';
 import { ThinkingFilm } from '@/components/authority/ThinkingFilm';
-import { CeilingAudit, OpenSourceCard } from '@/components/authority/CeilingAudit';
+import { CeilingAudit, OpenSourceCard, PilotResults } from '@/components/authority/CeilingAudit';
 import { AuthorityPricing } from '@/components/authority/AuthorityPricing';
 import '@/app/attack-lab/attack-lab.css';
 import { LayerExplorer } from '@/components/authority/LayerExplorer';
@@ -79,6 +79,18 @@ export default async function AuthorityPage() {
             </p>
           </div>
           <CeilingAudit />
+        </section>
+
+        <section id="pilots" className="section auth-section">
+          <div className="auth-section__head">
+            <p className="eyebrow">Pilot results · shadow mode, default policy</p>
+            <h2 className="auth-h2">What it did on real logs</h2>
+            <p className="auth-lead">
+              Shadow mode scores what Authority would have done and blocks nothing. Three runs so far, with the
+              numbers that matter: how often a real person would have been interrupted, and what it caught.
+            </p>
+          </div>
+          <PilotResults />
         </section>
 
         <section id="film" className="section auth-section">
