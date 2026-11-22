@@ -521,8 +521,15 @@ def serve(auth: Authority, host: str = "127.0.0.1", port: int = 8740, enroll=Non
     callers = load_callers(path)
     verifier = GrantVerifier(auth.issuer.signer.public_key)
     scim = scim_from_env(auth)
-    httpd = BoundedServer((host, port), make_handler(auth, callers, verifier, enroll, scim),
-                          int(os.environ.get("AUTHORITY_MAX_CLIENTS", "256")))
+    cls = BoundedServer
+    if ":" in host:  # an IPv6 address (IPv6-only clusters; "::" listens on every address)
+        import socket as _socket
+
+        class _V6(BoundedServer):
+            address_family = _socket.AF_INET6
+        cls = _V6
+    httpd = cls((host, port), make_handler(auth, callers, verifier, enroll, scim),
+                int(os.environ.get("AUTHORITY_MAX_CLIENTS", "256")))
     print(f"mastyf-authority listening on http://{host}:{port} (policy {auth.policy.version}, "
           f"model {'loaded' if auth.model else 'MISSING: sensitive actions will escalate'})", flush=True)
     httpd.serve_forever()

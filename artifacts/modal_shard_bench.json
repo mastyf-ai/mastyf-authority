@@ -1,0 +1,19 @@
+{
+ "where": "Modal, one container per engine / gateway / client group, connected through Modal TCP tunnels",
+ "engine_cpu": 2,
+ "gateway_cpu": 8,
+ "client_cpu": 8,
+ "client_procs_per_box": 24,
+ "runs": [
+  {
+   "shards": 1,
+   "gateways": 1,
+   "client_boxes": 2,
+   "decisions_per_s": 107,
+   "p50_ms": 315.5,
+   "p99_ms": 1845.3,
+   "errors": 1,
+   "setup_s": 45
+  }
+ ]
+}
