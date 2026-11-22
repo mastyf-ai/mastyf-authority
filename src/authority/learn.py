@@ -67,6 +67,49 @@ def learn_data_budgets(history: list[Action], classes: dict[str, list[str]], q: 
     return dict(out)
 
 
+def _rolling(points, start: float, end: float, window: float) -> np.ndarray:
+    ts = np.array(sorted(t for t, _ in points))
+    order = sorted(points)
+    cum = np.concatenate([[0], np.cumsum([n for _, n in order])])
+    grid = np.arange(start + window, end + 1, 3600.0)
+    return cum[np.searchsorted(ts, grid, side="right")] - cum[np.searchsorted(ts, grid - window, side="right")]
+
+
+def learn_long_budgets(history: list[Action], classes: dict[str, list[str]], daily: dict[str, dict[str, int]],
+                       q: float = 0.99, margin: float = 1.5) -> dict[str, dict[str, dict[str, int]]]:
+    """Weekly and 4-weekly limits for the same ledger keys as the daily budgets.
+
+    7d: the q-quantile of rolling 7-day totals in the history times `margin` (1.5: a busy week fits, a
+    month of taking the full daily budget every day does not). 28d: three of those weeks. Never below the
+    daily budget (a single normal day always fits). Needs at least 14 days of history for the key; keys
+    without enough history keep only their daily budget."""
+    shell = BudgetPolicy(classes, {})
+    pts: dict[tuple[str, str], list] = defaultdict(list)
+    for a in history:
+        if a.action_type not in READ_ACTIONS:
+            continue
+        cls = shell.classify(a.resource)
+        if cls is None:
+            continue
+        key = cls
+        if a.destination:
+            from .features import dest_key
+            key = f"{cls}@{dest_key(a.destination)}"
+        pts[(a.identity, key)].append((a.ts, a.count))
+    start, end = _span(history)
+    out: dict[str, dict[str, dict[str, int]]] = defaultdict(dict)
+    if end - start < 14 * DAY:
+        return {}
+    for (ident, key), p in pts.items():
+        tot = _rolling(p, start, end, 7 * DAY)
+        if not len(tot):
+            continue
+        d = int(daily.get(ident, {}).get(key, 0))
+        w = max(d, int(math.ceil(float(np.quantile(tot, q)) * margin / 10) * 10))
+        out[ident][key] = {"7d": w, "28d": max(d, 3 * w)}
+    return dict(out)
+
+
 def learn_teams(history: list[Action], classes: dict[str, list[str]], team_of: dict[str, list[str]],
                 q: float = 0.99, margin: float = 2.0, min_members: int = 2) -> dict[str, dict]:
     """Per-team limits from how the whole team normally works.

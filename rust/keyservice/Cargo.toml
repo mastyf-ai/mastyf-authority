@@ -25,6 +25,7 @@ x25519-dalek = "2"
 hkdf = "0.12"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 httparse = "1"
+signal-hook = { version = "0.3", default-features = false, features = ["iterator"] }
 
 [profile.release]
 overflow-checks = true

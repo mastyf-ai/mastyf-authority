@@ -2,8 +2,10 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: {{ .Release.Name }}-engine
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
 spec:
+  unhealthyPodEvictionPolicy: AlwaysAllow  # a crash-looping pod never blocks a node drain
   maxUnavailable: 1   # never drain both engines at once
   selector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine } }
 ---
@@ -11,7 +13,9 @@ apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: {{ .Release.Name }}-gateway
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
 spec:
+  unhealthyPodEvictionPolicy: AlwaysAllow
   minAvailable: 1
   selector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } }

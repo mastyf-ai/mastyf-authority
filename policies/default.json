@@ -121,6 +121,11 @@
     "learn_on_approval": true,
     "_comment_learn": "ask once: a destination a person approved for an identity stops escalating for that identity only (audited, reviewable); deny lists, limits, bait records and the model still apply"
   },
+  "origins": {
+    "enabled": true,
+    "strict": ["aws:arn:aws:iam::*:root", "*break-glass*"],
+    "_comment": "stolen keys: a call from a network the identity never used asks once (any action for identities that use few networks, sensitive actions for roaming people); needs metadata.origin_ip from the gate"
+  },
   "protected_branches": [
     "main",
     "master",
@@ -145,7 +150,9 @@
     ],
     "_comment_skip": "action types the behavioural model and novelty do not judge; sign-ins are judged by device binding and ask-once destinations",
     "warmup_days": 7,
-    "_comment_warmup": "new identities (no baseline yet: fewer than 20 allowed actions or under 7 days of history) are never refused by the model, only escalated, and middling scores are allowed and queued for review so a baseline can form; every other rule still applies. Bootstrap baselines with `authority learn` from existing logs to shorten this. 0 turns it off."
+    "_comment_warmup": "new identities (no baseline yet: fewer than 20 allowed actions or under 7 days of history) are never refused by the model, only escalated, and middling scores are allowed and queued for review so a baseline can form; every other rule still applies. Bootstrap baselines with `authority learn` from existing logs to shorten this. 0 turns it off.",
+    "per_identity_calibration": true,
+    "_comment_calibration": "judge each identity against its own normal: scores within its 99th percentile of the last 500 allowed actions count as normal for it (needs 50); above that, rescaled. Identities whose normal is already at the top of the scale are left to limits, budgets and policy (noted in the review queue)."
   },
   "grant_ttl_seconds": 60,
   "approval_ttl_seconds": 900,

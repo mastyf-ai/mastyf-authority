@@ -19,7 +19,7 @@ How to run Authority in production: what to deploy, how it fails, and what to do
 |---|---|---|---|
 | **Gateway** (Rust) | The only thing callers reach: TLS 1.3, per-caller keys and rate limits, strict HTTP parsing; routes to the active engine and promotes a standby when the active one dies | none | Callers retry another gateway replica |
 | **Engine** (Python), active + standby | Decides: policy, budgets, approvals, behavioural model; writes the signed audit log | audit log, snapshots | The standby takes over in about 3 s; until then decisions are refused (fail closed) |
-| **Key service** (Rust) | Holds the record keys; releases them only for a valid grant and within the data budget | journal + KEK | Releases stop (fail closed); restarts in under a second |
+| **Key service** (Rust), primary + synchronous standby + witnesses | Holds the record keys; releases them only for a valid grant and within the data budget | journal + KEK | The standby takes the witness lease and continues with nothing lost; a single node restarts in about a second |
 
 The engines share **one signing key**: to the key service they are one authority. The standby pulls every audit
 record from the active engine, checks its hash chain and signature, and applies it, so it holds the same state.
@@ -33,7 +33,8 @@ which costs nothing for safety because data budgets are counted by the key servi
 ## Deploy on Kubernetes
 
 The Helm chart is in [`deploy/helm/mastyf-authority`](deploy/helm/mastyf-authority) and is attached to every release.
-It runs two gateways, two engines (pod `-0` starts active) on different nodes, and the key service, with
+It runs two gateways, two engines (pod `-0` starts active) on different nodes, and the key service (optionally
+two nodes with synchronous replication and a witness: `keyservice.ha.enabled=true`), with
 network policies that let only the gateway reach the engines and only the engines (and the namespaces you
 choose) reach the key service. Every pod runs as a non-root user with a read-only root filesystem, no Linux
 capabilities and the default seccomp profile.
@@ -58,6 +59,20 @@ capabilities and the default seccomp profile.
    ```
 
 3. **Check** that one engine is `active`, the other `standby`, at the same `seq` (see the chart's NOTES).
+
+Tested end to end on a real Kubernetes cluster (kind, three nodes) on every chart change (`tools/k8s_e2e.py`):
+install; decisions through the gateway; killing the active engine pod (standby promoted in about 4-10 s, freezes
+kept, the old pod rejoins as standby); taking the key-service primary down (the other node takes over in about 35
+s, the old one rejoins as standby); a second engine failover that fences the new key-service primary; and the
+network policies (a stray pod reaches the gateway, not the engines or the key service).
+
+Notes from that testing:
+- The key service keeps its state in `/state/data` (a directory it owns), because a volume's root belongs to root.
+- With `secrets.kek`, an init container copies the KEK owner-only into memory: Kubernetes makes secret files
+  group-readable when `fsGroup` is set, and the key service refuses a KEK others can read. With your KMS, use
+  `keyservice.kekCommand` instead.
+- Key-service HA needs `secrets.keyserviceHaTls` (one certificate whose SANs cover `<release>-ks-a-0.<release>-ks-a`,
+  `<release>-ks-b-0.<release>-ks-b` and `<release>-witness-N.<release>-witness`). Use 3 witnesses in production.
 
 Verify release images before you deploy them (keyless Sigstore signatures, build provenance):
 
@@ -92,16 +107,18 @@ attack logs and a simulated company's work across 2,475 identities), using our i
 
 | | Measured |
 |---|---|
-| Decisions per second, one active engine | about 1,300–2,900 (one CPU core: the engine is single-process Python) |
+| Decisions per second, one active engine | about 1,300–2,900 (one CPU core: the engine is single-process Python); a single very busy identity no longer slows the others (its 24 h window is kept as per-minute buckets) |
 | Decision latency | p50 8–14 ms, p99 31–44 ms |
 | Key release latency | p50 0.1 ms, p99 8 ms |
 | Audit log | about 740 bytes per decision (roughly 60 GB/day at 1,000 decisions/s: see retention) |
 | Snapshot | about 57 MB for 2,475 identities with full history; written in well under a second |
 | Restart | about 6 s from snapshot + tail on an idle machine |
-| Failover | 2.3–2.8 s from killing the active engine to decisions continuing on the standby |
+| Engine failover | 2.3–2.8 s on one host, 4–10 s on Kubernetes, from killing the active engine to decisions continuing |
+| Key-service failover | about 5 s on Kubernetes (3-node cluster, primary killed); a node that comes back within its lease resumes at once |
+| Shards | 1,310 decisions/s with one engine pair, 2,254 with two (one laptop, clients on the same machine); add pairs to go further |
 
-Give each engine two dedicated cores and fast local SSD storage. For more than ~2,000 decisions per second,
-split identities across independent Authority deployments (each with its own key service), or talk to us.
+Give each engine two dedicated cores and fast local SSD storage. For more than ~1,500 decisions per second
+per engine pair, add shards (see "Scaling out: shards").
 
 ## How it fails
 
@@ -116,7 +133,50 @@ component healthy.
 | Gateway down | Connection errors | Other gateway replicas; restarts in under a second |
 | Engine's disk full | Snapshots fail (alerted); the audit log is still written until the disk is truly full, then decisions fail closed | Free space; archive old segments |
 | Power loss | Freezes, approvals and every key release survive; at most 0.2 s of routine decision records can be lost | Automatic: a half-written last line is cut back on start |
+| Standby slow or detached when a freeze is confirmed | The freeze is confirmed anyway (availability), after the active engine records it as the **floor** in the key service | A standby that lacks the floor record can never be promoted; it catches up first (`formal/Failover.tla`) |
+| Active engine cut off from the gateway but still running | Its grants and confirmations are refused by the key service within a second (it polls the key service, not only its peer) | Automatic; with `--role auto` it exits and rejoins as standby |
 | Old engine comes back after a failover | It sees the newer active engine and stops deciding ("fenced"); with `--role auto` it rejoins as standby | Automatic; diverged records are moved aside, never deleted |
+
+## Single sign-on
+
+Callers can present tokens from your identity provider (Okta, Entra ID, Google, Keycloak, Ping, Auth0) instead of
+Authority keys. The gateway checks them (RS256/ES256 only; issuer, audience, expiry) and maps a claim to an identity:
+
+```
+mastyf-gateway ... --oidc-issuer https://idp.example.com/realms/acme --oidc-audience authority \
+  --oidc-jwks /etc/authority/jwks.json --oidc-claim preferred_username --oidc-identity-format human:{} \
+  [--oidc-map map.json] --gateway-key-file /etc/authority/gateway.key
+```
+
+Refresh `jwks.json` from the provider's JWKS URL (it is re-read when it changes). `human:{}` maps `alice` to
+`human:alice`; a format can never produce `admin` or `replica` - only an explicit `--oidc-map` entry can. Add the
+gateway key's SHA-256 to the callers file as `"gateway"`: engines accept an identity from the gateway only with it.
+Tested end to end against Keycloak (`tools/sso_e2e.py`). The approve and enroll pages still use keys and passkeys.
+
+## Sending the audit log to your SIEM
+
+`authority siem --state <dir> --to <target>` follows the audit log and sends every record as an OCSF 1.3 event
+(decisions: API Activity; freezes, promotions, agent revocations: Detection Finding; approvals: User Access
+Management). Targets: `opensearch+https://host:9200/<index>` (also Elasticsearch), `splunk+https://host:8088` (HEC,
+token in `AUTHORITY_SIEM_TOKEN`), `webhook+https://...`, `file:/path`, `stdout`. Every record is verified (hash chain
+and signature) before it is sent; it resumes from `<dir>/siem.pos`; event ids are log sequence numbers, so a resend
+never duplicates. Measured into OpenSearch: 4,300 events/s. Run it next to the active engine (it reads the log).
+
+## Scaling out: shards
+
+One engine pair decides on one core. To go beyond it, run several engine pairs behind the same gateways and key
+service and name them:
+
+```
+mastyf-gateway ... --shard eu=10.0.1.10:8740,10.0.1.11:8740 --shard us=10.0.2.10:8740,10.0.2.11:8740
+# each engine of a pair: AUTHORITY_SHARD=eu (or us)
+```
+
+Each identity always lands on the same shard (rendezvous hashing); approvals, denials and freezes go to the shard of
+the identity they concern; alerts, pending requests and metrics are merged across shards. Each pair fails over on
+its own: the key service keeps an epoch and a floor per shard, so one pair's promotion never refuses another's
+grants. Adding a shard moves about 1 in N identities to it, where they start a fresh baseline (warm-up). Team
+budgets pool only within a shard.
 
 ## Monitoring and alerts
 
@@ -138,6 +198,14 @@ last contact, unsynced audit records and snapshot age. Alert rules are in
 lower epoch are already refused by the key service. Restart it with `--role auto`: it rejoins as standby; if its
 log holds records the new active engine never received, they are moved to `diverged-<time>/` in its state
 directory (for investigation) and it resyncs.
+
+### Not promotable
+The gateway log says `promote answered ... not promotable: this engine does not hold confirmed record N`. The only
+engines holding the newest confirmed freeze/approval are down. Bring one of them back; it starts active (or is
+promoted) and the other copies from it. **Only if every copy is lost** (both disks gone), accept the loss explicitly:
+`authority failover reset-floor --state <engine state dir> --accept-loss --reason "<what happened>"`. It is signed with
+the engine key and journaled by the key service; freezes and approvals confirmed after the last surviving record are
+gone, so re-apply them from the SIEM copy of the audit log. `authority failover status` shows the floor.
 
 ### Standby missing or lagging
 `AuthorityStandbyMissing`, `AuthorityReplicationLag`. A crash now would mean downtime until restart. Check the

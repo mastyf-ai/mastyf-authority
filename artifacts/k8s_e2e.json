@@ -1,0 +1,63 @@
+{
+ "when": "2026-11-22 18:40",
+ "steps": [
+  {
+   "step": "cluster",
+   "nodes": "3"
+  },
+  {
+   "step": "images built and loaded"
+  },
+  {
+   "step": "installed",
+   "seconds": 22
+  },
+  {
+   "step": "decisions through the gateway",
+   "ok_of_50": 50
+  },
+  {
+   "step": "standby at the same position",
+   "seq": 51
+  },
+  {
+   "step": "engine failover",
+   "seconds": 4.0,
+   "engine1": "active",
+   "epoch": 2,
+   "freeze_kept": true
+  },
+  {
+   "step": "old engine pod rejoined as standby",
+   "seq": 54
+  },
+  {
+   "step": "key service failover to the other node",
+   "killed": "t-ks-b-0",
+   "seconds": 5.0,
+   "new_primary": [
+    "t-ks-a-0"
+   ]
+  },
+  {
+   "step": "old key-service node back as standby",
+   "ready": {
+    "t-ks-a-0": "1/1",
+    "t-ks-b-0": "0/1"
+   }
+  },
+  {
+   "step": "second engine failover (fencing the new key-service primary)",
+   "seconds": 10.3,
+   "engine0": "active",
+   "epoch": 3
+  },
+  {
+   "step": "network policy (stray pod)",
+   "gateway": "OPEN",
+   "engine": "BLOCKED",
+   "keyservice": "BLOCKED"
+  }
+ ],
+ "ok": true
+}

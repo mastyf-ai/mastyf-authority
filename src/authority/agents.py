@@ -184,6 +184,15 @@ class AgentSessions:
                 rec_ids = a.metadata.get("record_ids")
                 s["records"] += len(rec_ids) if isinstance(rec_ids, list) else a.count
 
+    def approved_destination(self, a: Action) -> bool:
+        """The person named this exact destination in the agent's approved manifest."""
+        s = self.session_of(a)
+        if s is None or not a.destination:
+            return False
+        d = dest_key(a.destination)
+        return any(e.get("destination") == d and fnmatchcase(a.action_type, e.get("action", ""))
+                   for e in s["manifest"]["allow"])
+
     def constraints(self, a: Action) -> dict:
         s = self.session_of(a)
         return {"sess": s["id"], "sess_max": s["max_records"]} if s else {}

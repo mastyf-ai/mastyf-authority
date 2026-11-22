@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-engine
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
     app.kubernetes.io/component: engine
 spec:
@@ -14,6 +15,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-engine
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
     app.kubernetes.io/component: engine
 spec:
@@ -45,15 +47,17 @@ spec:
                 matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine }
       initContainers:
         - name: signing-key
-          image: "{{ .Values.image.registry }}/mastyf-authority-authority:{{ include "ma.tag" . }}"
+          image: "{{ include "ma.image" (list . "authority") }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["sh", "-c", "test -f /state/signing_key.pem || install -m 600 /secrets/signing/signing_key.pem /state/signing_key.pem"]
           securityContext: {{- include "ma.containerSecurity" . | nindent 12 }}
+          resources: { requests: { cpu: 10m, memory: 16Mi }, limits: { cpu: 100m, memory: 32Mi } }
           volumeMounts:
             - { name: state, mountPath: /state }
             - { name: signing, mountPath: /secrets/signing, readOnly: true }
       containers:
         - name: engine
-          image: "{{ .Values.image.registry }}/mastyf-authority-authority:{{ include "ma.tag" . }}"
+          image: "{{ include "ma.image" (list . "authority") }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - authority
@@ -75,8 +79,7 @@ spec:
             - { name: AUTHORITY_KEYSERVICE_CERT, value: /secrets/ks/client.crt }
             - { name: AUTHORITY_KEYSERVICE_KEY, value: /secrets/ks/client.key }
             - { name: AUTHORITY_PEER_CA, value: /secrets/gwtls/ca.crt }   # the CA that signed the gateway's certificate
-            - name: AUTHORITY_REPLICA_KEY
-              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.replicaKey }}, key: replica.key } }
+            - { name: AUTHORITY_REPLICA_KEY_FILE, value: /secrets/replica/replica.key }
           ports: [{ name: http, containerPort: {{ .Values.engine.port }} }]
           readinessProbe:   # standbys are "ready" too: the gateway, not Kubernetes, picks the active one
             httpGet: { path: /healthz, port: http }
@@ -95,6 +98,7 @@ spec:
             - { name: model, mountPath: /model, readOnly: true }
             - { name: callers, mountPath: /secrets/callers, readOnly: true }
             - { name: approvers, mountPath: /secrets/approvers, readOnly: true }
+            - { name: replica, mountPath: /secrets/replica, readOnly: true }
             - { name: kstls, mountPath: /secrets/ks, readOnly: true }
             - { name: gwtls, mountPath: /secrets/gwtls, readOnly: true }
       volumes:
@@ -108,6 +112,7 @@ spec:
         - { name: signing, secret: { secretName: {{ .Values.secrets.signingKey }}, defaultMode: 0400 } }
         - { name: callers, secret: { secretName: {{ .Values.secrets.callers }}, defaultMode: 0400 } }
         - { name: approvers, secret: { secretName: {{ .Values.secrets.approvers }}, defaultMode: 0400 } }
+        - { name: replica, secret: { secretName: {{ .Values.secrets.replicaKey }}, defaultMode: 0400 } }
         - { name: kstls, secret: { secretName: {{ .Values.secrets.keyserviceTls }}, defaultMode: 0400 } }
         - { name: gwtls, secret: { secretName: {{ .Values.secrets.gatewayTls }}, defaultMode: 0400, items: [{ key: ca.crt, path: ca.crt }] } }
   volumeClaimTemplates:

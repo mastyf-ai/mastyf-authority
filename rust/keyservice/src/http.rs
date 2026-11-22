@@ -13,6 +13,8 @@ pub struct Req {
     pub path: String,
     pub query: String,
     pub auth: Option<String>,
+    /// X-Authority-Shard: engines of a sharded deployment name their shard on replication and health calls
+    pub shard: Option<String>,
     pub body: Vec<u8>,
     pub close: bool,
 }
@@ -53,7 +55,7 @@ pub fn read_request<S: Read>(s: &mut S, buf: &mut Vec<u8>) -> Result<Req, ReadEr
     }
     let method = r.method.unwrap_or("").to_string();
     let target = r.path.unwrap_or("").to_string();
-    let (mut len, mut auth, mut close, mut seen_len) = (0usize, None, false, false);
+    let (mut len, mut auth, mut close, mut seen_len, mut shard) = (0usize, None, false, false, None);
     for h in r.headers.iter() {
         let name = h.name.to_ascii_lowercase();
         let v = std::str::from_utf8(h.value).map_err(|_| ReadErr::Bad(400, "bad header"))?;
@@ -67,6 +69,12 @@ pub fn read_request<S: Read>(s: &mut S, buf: &mut Vec<u8>) -> Result<Req, ReadEr
                 len = v.trim().parse().map_err(|_| ReadErr::Bad(400, "bad content-length"))?;
             }
             "authorization" => auth = Some(v.to_string()),
+            "x-authority-shard" => {
+                if v.is_empty() || v.len() > 64 || !v.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_') {
+                    return Err(ReadErr::Bad(400, "bad shard name"));
+                }
+                shard = Some(v.to_string())
+            }
             "connection" => close = v.eq_ignore_ascii_case("close"),
             _ => {}
         }
@@ -86,5 +94,5 @@ pub fn read_request<S: Read>(s: &mut S, buf: &mut Vec<u8>) -> Result<Req, ReadEr
         Some((p, q)) => (p.to_string(), q.to_string()),
         None => (target, String::new()),
     };
-    Ok(Req { method, path, query, auth, body, close })
+    Ok(Req { method, path, query, auth, shard, body, close })
 }

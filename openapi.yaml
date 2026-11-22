@@ -1,0 +1,129 @@
+openapi: 3.0.3
+info:
+  title: Mastyf Authority API
+  version: 0.2.0
+  description: |
+    The gateway's API. Every request except /healthz and the static pages carries the caller's own bearer key
+    (`Authorization: Bearer <key>`); each key maps to exactly one identity, and a caller can act only as that
+    identity. Bodies are JSON objects (no chunked encoding, at most 2 MB). /v1/decide always answers with a
+    verdict: when anything is wrong it answers DENY (fails closed).
+  license: { name: AGPL-3.0-or-later }
+servers: [{ url: "https://authority.example.com:8443" }]
+security: [{ bearer: [] }]
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer }
+  schemas:
+    Action:
+      type: object
+      required: [identity, action_type, resource]
+      properties:
+        identity: { type: string, description: "must be the caller's own identity", example: "human:alice" }
+        action_type:
+          type: string
+          enum: [auth.login, data.read, data.export, secret.read, artifact.publish, repo.push, repo.history_rewrite,
+                 process.exec, network.egress, file.write_bulk, backup.delete, payment.send, email.bulk_send,
+                 dns.change, key.delete, storage.delete, account.delete, permission.grant, agent.session,
+                 security.control_change]
+        resource: { type: string, example: "db://crm/customers/query" }
+        count: { type: integer, minimum: 0, default: 1 }
+        destination: { type: string, nullable: true, example: "s3://corp-reports" }
+        session: { type: string, nullable: true }
+        metadata: { type: object, additionalProperties: true }
+    Decision:
+      type: object
+      properties:
+        verdict: { type: string, enum: [ALLOW, ESCALATE, DENY] }
+        reasons: { type: array, items: { type: string } }
+        decision_id: { type: string }
+        fingerprint: { type: string, description: "what an approver approves" }
+        grant: { type: string, description: "signed, single-use, short-lived; present only on ALLOW" }
+        risk: { type: number, nullable: true }
+        stage: { type: string }
+    Error:
+      type: object
+      properties: { error: { type: string } }
+paths:
+  /healthz:
+    get:
+      security: []
+      summary: Health, role (active/standby/fenced), epoch and audit position of the engine
+      responses: { "200": { description: ok } }
+  /v1/decide:
+    post:
+      summary: Ask whether an action may happen now
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { $ref: "#/components/schemas/Action" }
+                approval_id: { type: string }
+      responses:
+        "200": { description: decision, content: { application/json: { schema: { $ref: "#/components/schemas/Decision" } } } }
+        "400": { description: malformed request (verdict DENY) }
+        "401": { description: no or unknown key }
+        "403": { description: identity is not the caller's own (verdict DENY) }
+        "429": { description: rate limit (verdict DENY) }
+        "503": { description: no active engine (verdict DENY, fail closed) }
+  /v1/approve:
+    post:
+      summary: An approver approves an escalated request (signed by the approver's own key or passkey)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fingerprint, requester, approver, reason, signature]
+              properties:
+                fingerprint: { type: string }
+                requester: { type: string }
+                approver: { type: string, description: "must be the caller" }
+                reason: { type: string, minLength: 8 }
+                signature: { type: string }
+      responses: { "200": { description: "{approval_id}" }, "400": { description: refused }, "403": { description: not the caller } }
+  /v1/deny:
+    post:
+      summary: An approver refuses an escalated request
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [fingerprint, approver], properties: { fingerprint: { type: string }, approver: { type: string }, reason: { type: string } } } } } }
+      responses: { "200": { description: ok } }
+  /v1/grant/verify:
+    post:
+      summary: Check a grant against an action
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [grant, action], properties: { grant: { type: string }, action: { $ref: "#/components/schemas/Action" } } } } } }
+      responses: { "200": { description: "{valid, grant | error}" } }
+  /v1/script/check:
+    post:
+      summary: Script-integrity check of a new version of a page script (admin)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [candidate], properties: { previous: { type: string }, candidate: { type: string }, allowed_hosts: { type: array, items: { type: string } } } } } } }
+      responses: { "200": { description: report }, "403": { description: admin only } }
+  /v1/freeze:
+    post:
+      summary: Freeze an identity (admin)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [identity], properties: { identity: { type: string }, reason: { type: string } } } } } }
+      responses: { "200": { description: ok }, "403": { description: admin only } }
+  /v1/unfreeze:
+    post:
+      summary: Lift a freeze (admin)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [identity, operator], properties: { identity: { type: string }, operator: { type: string } } } } } }
+      responses: { "200": { description: ok }, "403": { description: admin only } }
+  /v1/alerts:
+    get: { summary: Recent alerts and frozen identities, responses: { "200": { description: ok } } }
+  /v1/pending:
+    get: { summary: Escalated requests waiting for an approver (not the caller's own), responses: { "200": { description: ok } } }
+  /v1/public-key:
+    get: { summary: PEM of the grant and audit signing key, responses: { "200": { description: ok } } }
+  /v1/replication:
+    post:
+      summary: Audit records after a sequence number (the standby engine's "replica" key only)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { after: { type: integer }, wait: { type: number, maximum: 8 } } } } } }
+      responses: { "200": { description: records }, "403": { description: not the replica key } }
+  /v1/promote:
+    post:
+      summary: Promote a standby engine (gateways only, with the replica key); fences the key service first
+      requestBody: { content: { application/json: { schema: { type: object, properties: { reason: { type: string } } } } } }
+      responses: { "200": { description: promoted }, "409": { description: "refused: key service not fenced" } }

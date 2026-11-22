@@ -1,0 +1,29 @@
+{
+ "machine": "arm64, 10 cores",
+ "runs": [
+  {
+   "shards": 1,
+   "decisions_per_s": 1310,
+   "p50_ms": 16.0,
+   "p99_ms": 78.0,
+   "errors": 0,
+   "clients": 48
+  },
+  {
+   "shards": 2,
+   "decisions_per_s": 2254,
+   "p50_ms": 11.2,
+   "p99_ms": 39.5,
+   "errors": 0,
+   "clients": 48
+  },
+  {
+   "shards": 4,
+   "decisions_per_s": 2529,
+   "p50_ms": 7.4,
+   "p99_ms": 44.8,
+   "errors": 0,
+   "clients": 48
+  }
+ ]
+}

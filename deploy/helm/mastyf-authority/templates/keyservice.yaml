@@ -1,76 +1,201 @@
+{{- $nodes := ternary (list "a" "b") (list "") .Values.keyservice.ha.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-keyservice
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
     app.kubernetes.io/component: keyservice
 spec:
+  # only the primary listens for clients (a standby waits for the lease), so this reaches the primary
   selector: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice }
   ports: [{ name: mtls, port: {{ .Values.keyservice.port }}, targetPort: mtls }]
+{{- range $n := $nodes }}
+{{- $name := ternary (printf "%s-ks-%s" $.Release.Name $n) (printf "%s-keyservice" $.Release.Name) $.Values.keyservice.ha.enabled }}
+{{- $peer := ternary "b" "a" (eq $n "a") }}
+{{- if $.Values.keyservice.ha.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels: {{- include "ma.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: keyservice
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector: { app.kubernetes.io/instance: {{ $.Release.Name }}, app.kubernetes.io/component: keyservice, mastyf.ai/ks-node: {{ $n | default "single" | quote }} }
+  ports: [{ name: ha, port: {{ $.Values.keyservice.ha.port }} }]
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}-keyservice
-  labels: {{- include "ma.labels" . | nindent 4 }}
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels: {{- include "ma.labels" $ | nindent 4 }}
     app.kubernetes.io/component: keyservice
 spec:
-  serviceName: {{ .Release.Name }}-keyservice
-  replicas: 1   # one writer per journal; for a synchronous standby + witnesses see OPERATIONS.md (high availability)
+  serviceName: {{ $name }}{{ if not $.Values.keyservice.ha.enabled }}-pods{{ end }}
+  replicas: 1   # one writer per journal
   selector:
-    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice }
+    matchLabels: { app.kubernetes.io/instance: {{ $.Release.Name }}, app.kubernetes.io/component: keyservice, mastyf.ai/ks-node: {{ $n | default "single" | quote }} }
   template:
     metadata:
-      labels: {{- include "ma.labels" . | nindent 8 }}
+      labels: {{- include "ma.labels" $ | nindent 8 }}
         app.kubernetes.io/component: keyservice
+        mastyf.ai/ks-node: {{ $n | default "single" | quote }}
     spec:
-      securityContext: {{- include "ma.podSecurity" . | nindent 8 }}
+      securityContext: {{- include "ma.podSecurity" $ | nindent 8 }}
       automountServiceAccountToken: false
+      {{- if $.Values.keyservice.ha.enabled }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector: { matchLabels: { app.kubernetes.io/instance: {{ $.Release.Name }}, app.kubernetes.io/component: keyservice } }
+      {{- end }}
+      {{- if not $.Values.keyservice.kekCommand }}
+      initContainers:
+        # Kubernetes makes secret files group-readable when fsGroup is set; the key service refuses a KEK
+        # others can read. Copy it, owner-only, into memory (never onto disk).
+        - name: kek
+          image: "{{ include "ma.image" (list $ "authority") }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: ["sh", "-c", "install -m 600 /secrets/kek/kek.b64 /kek/kek.b64"]
+          securityContext: {{- include "ma.containerSecurity" $ | nindent 12 }}
+          resources: { requests: { cpu: 10m, memory: 16Mi }, limits: { cpu: 100m, memory: 32Mi } }
+          volumeMounts:
+            - { name: kek, mountPath: /secrets/kek, readOnly: true }
+            - { name: kekmem, mountPath: /kek }
+      {{- end }}
       containers:
         - name: keyservice
-          image: "{{ .Values.image.registry }}/mastyf-authority-keyservice:{{ include "ma.tag" . }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ include "ma.image" (list $ "keyservice") }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
           args:
             - --policy=/config/policy.json
             - --authority-key=/authority/authority.pub.pem
             - --approvers=/secrets/approvers/approvers.json
-            - --state-dir=/state
-            {{- if .Values.keyservice.kekCommand }}
-            - --kek-command={{ .Values.keyservice.kekCommand }}
+            - --state-dir=/state/data   # a directory this user owns (the volume root belongs to root)
+            {{- if $.Values.keyservice.kekCommand }}
+            - --kek-command={{ $.Values.keyservice.kekCommand }}
             {{- else }}
-            - --kek-file=/secrets/kek/kek.b64
+            - --kek-file=/kek/kek.b64
             {{- end }}
-            - --tls-listen=0.0.0.0:{{ .Values.keyservice.port }}
+            - --tls-listen=0.0.0.0:{{ $.Values.keyservice.port }}
             - --tls-cert=/tls/server.crt
             - --tls-key=/tls/server.key
             - --tls-client-ca=/tls/clients-ca.crt
-          ports: [{ name: mtls, containerPort: {{ .Values.keyservice.port }} }]
-          readinessProbe: { tcpSocket: { port: mtls }, periodSeconds: 5 }
-          livenessProbe: { tcpSocket: { port: mtls }, periodSeconds: 10 }
-          resources: {{- toYaml .Values.keyservice.resources | nindent 12 }}
-          securityContext: {{- include "ma.containerSecurity" . | nindent 12 }}
+            {{- if $.Values.keyservice.ha.enabled }}
+            - --ha-node=ks-{{ $n }}
+            - --ha-listen=0.0.0.0:{{ $.Values.keyservice.ha.port }}
+            - --ha-peer={{ $.Release.Name }}-ks-{{ $peer }}-0.{{ $.Release.Name }}-ks-{{ $peer }}:{{ $.Values.keyservice.ha.port }}
+            - --ha-peer-node=ks-{{ $peer }}
+            {{- range $i := until (int $.Values.keyservice.ha.witnesses) }}
+            - --ha-witness={{ $.Release.Name }}-witness-{{ $i }}.{{ $.Release.Name }}-witness:{{ $.Values.keyservice.ha.witnessPort }}
+            {{- end }}
+            - --ha-cert=/ha/ha.crt
+            - --ha-key=/ha/ha.key
+            - --ha-ca=/ha/ha-ca.crt
+            {{- end }}
+          ports:
+            - { name: mtls, containerPort: {{ $.Values.keyservice.port }} }
+            - { name: ha, containerPort: {{ $.Values.keyservice.ha.port }} }
+          readinessProbe: { tcpSocket: { port: mtls }, periodSeconds: 2 }   # standby: not ready (no client port)
+          livenessProbe: { tcpSocket: { port: ha }, periodSeconds: 10, failureThreshold: 6 }  # both nodes serve the HA port
+          resources: {{- toYaml $.Values.keyservice.resources | nindent 12 }}
+          securityContext: {{- include "ma.containerSecurity" $ | nindent 12 }}
           volumeMounts:
             - { name: state, mountPath: /state }
             - { name: policy, mountPath: /config, readOnly: true }
             - { name: authority, mountPath: /authority, readOnly: true }
             - { name: approvers, mountPath: /secrets/approvers, readOnly: true }
             - { name: tls, mountPath: /tls, readOnly: true }
-            {{- if not .Values.keyservice.kekCommand }}
-            - { name: kek, mountPath: /secrets/kek, readOnly: true }
+            {{- if $.Values.keyservice.ha.enabled }}
+            - { name: ha, mountPath: /ha, readOnly: true }
+            {{- end }}
+            {{- if not $.Values.keyservice.kekCommand }}
+            - { name: kekmem, mountPath: /kek, readOnly: true }
             {{- end }}
       volumes:
-        - { name: policy, configMap: { name: {{ include "ma.policyCM" . }} } }
-        - { name: authority, secret: { secretName: {{ .Values.secrets.signingKey }}, items: [{ key: authority.pub.pem, path: authority.pub.pem }] } }
-        - { name: approvers, secret: { secretName: {{ .Values.secrets.approvers }}, defaultMode: 0400 } }
-        - { name: tls, secret: { secretName: {{ .Values.secrets.keyserviceTls }}, defaultMode: 0400 } }
-        {{- if not .Values.keyservice.kekCommand }}
-        - { name: kek, secret: { secretName: {{ .Values.secrets.kek }}, defaultMode: 0400 } }
+        - { name: policy, configMap: { name: {{ include "ma.policyCM" $ }} } }
+        - { name: authority, secret: { secretName: {{ $.Values.secrets.signingKey }}, items: [{ key: authority.pub.pem, path: authority.pub.pem }] } }
+        - { name: approvers, secret: { secretName: {{ $.Values.secrets.approvers }}, defaultMode: 0400 } }
+        - { name: tls, secret: { secretName: {{ $.Values.secrets.keyserviceTls }}, defaultMode: 0400 } }
+        {{- if $.Values.keyservice.ha.enabled }}
+        - { name: ha, secret: { secretName: {{ $.Values.secrets.keyserviceHaTls }}, defaultMode: 0400 } }
+        {{- end }}
+        {{- if not $.Values.keyservice.kekCommand }}
+        - { name: kek, secret: { secretName: {{ $.Values.secrets.kek }}, defaultMode: 0400 } }
+        - { name: kekmem, emptyDir: { medium: Memory, sizeLimit: 1Mi } }
         {{- end }}
   volumeClaimTemplates:
     - metadata: { name: state }
       spec:
         accessModes: [ReadWriteOnce]
-        {{- with .Values.keyservice.storage.storageClassName }}
+        {{- with $.Values.keyservice.storage.storageClassName }}
         storageClassName: {{ . }}
         {{- end }}
-        resources: { requests: { storage: {{ .Values.keyservice.storage.size }} } }
+        resources: { requests: { storage: {{ $.Values.keyservice.storage.size }} } }
+{{- end }}
+{{- if .Values.keyservice.ha.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-witness
+  namespace: {{ $.Release.Namespace }}
+  labels: {{- include "ma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: witness
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: witness }
+  ports: [{ name: witness, port: {{ .Values.keyservice.ha.witnessPort }} }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-witness
+  namespace: {{ $.Release.Namespace }}
+  labels: {{- include "ma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: witness
+spec:
+  serviceName: {{ .Release.Name }}-witness
+  replicas: {{ .Values.keyservice.ha.witnesses }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: witness }
+  template:
+    metadata:
+      labels: {{- include "ma.labels" . | nindent 8 }}
+        app.kubernetes.io/component: witness
+    spec:
+      securityContext: {{- include "ma.podSecurity" . | nindent 8 }}
+      automountServiceAccountToken: false
+      containers:
+        - name: witness
+          image: "{{ include "ma.image" (list . "keyservice") }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [witness, --listen=0.0.0.0:{{ .Values.keyservice.ha.witnessPort }}, --state=/state/witness.json,
+                 --ha-cert=/ha/ha.crt, --ha-key=/ha/ha.key, --ha-ca=/ha/ha-ca.crt]
+          ports: [{ name: witness, containerPort: {{ .Values.keyservice.ha.witnessPort }} }]
+          readinessProbe: { tcpSocket: { port: witness }, periodSeconds: 5 }
+          livenessProbe: { tcpSocket: { port: witness }, periodSeconds: 10, failureThreshold: 6 }
+          resources: { requests: { cpu: 50m, memory: 16Mi }, limits: { cpu: 500m, memory: 64Mi } }
+          securityContext: {{- include "ma.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: state, mountPath: /state }
+            - { name: ha, mountPath: /ha, readOnly: true }
+      volumes:
+        - { name: ha, secret: { secretName: {{ .Values.secrets.keyserviceHaTls }}, defaultMode: 0400 } }
+  volumeClaimTemplates:
+    - metadata: { name: state }
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: { requests: { storage: 64Mi } }
+{{- end }}

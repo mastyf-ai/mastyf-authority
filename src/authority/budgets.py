@@ -40,6 +40,8 @@ from fnmatch import fnmatchcase
 from .policy import matches
 
 NOVELTY_WINDOW = 30 * DAY
+LONG_WINDOWS = (("7d", 7 * DAY), ("28d", 28 * DAY))
+LONG_KEEP = 28 * DAY
 READ_ACTIONS = frozenset({"data.read", "data.export", "secret.read"})
 
 
@@ -61,12 +63,16 @@ class BudgetPolicy:
     # policy has this section, a missing entry means 0 (no overruns); without it overruns are
     # unlimited and the damage ceiling (ceiling.py) reports "unbounded if approvers are compromised".
     overrun_max: dict[str, dict[str, int]] | None = None
+    # identity -> ledger key -> {"7d": int, "28d": int}: the same records over longer windows, so a patient
+    # attacker cannot take the full daily budget every day (tools/adaptive_attack.py: 3.6x the victim's
+    # normal month with daily budgets only)
+    long: dict[str, dict[str, dict[str, int]]] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d: dict) -> "BudgetPolicy":
         return cls(d["classes"], d["budgets"], int(d.get("overrun_signatures", 2)), d.get("novelty", {}),
                    list(d.get("canary_records", [])), list(d.get("device_bound", [])), d.get("purpose_bound", {}),
-                   d.get("overrun_max"))
+                   d.get("overrun_max"), {k: v for k, v in d.get("long_budgets", {}).items() if not k.startswith("_")})
 
     def overrun_cap(self, identity: str, data_class: str) -> int | None:
         if self.overrun_max is None:
@@ -133,6 +139,7 @@ class KeyService:
         self.ledger: dict[tuple[str, str], deque] = defaultdict(deque)
         self.seen: dict[tuple[str, str], dict[str, float]] = defaultdict(dict)  # record id -> last released
         self.new_ledger: dict[tuple[str, str], deque] = defaultdict(deque)  # (t, new records)
+        self.long_ledger: dict[tuple[str, str], deque] = defaultdict(deque)  # (hour start, records), 28 days
         self._lock = threading.Lock()
 
     # ---- key custody ------------------------------------------------------
@@ -170,6 +177,20 @@ class KeyService:
         while dq and dq[0][0] <= ts - DAY:
             dq.popleft()
         return sum(n for _, n in dq)
+
+    def long_used(self, identity: str, key: str, ts: float, window: float) -> int:
+        dq = self.long_ledger[(identity, key)]
+        while dq and dq[0][0] <= ts - LONG_KEEP:
+            dq.popleft()
+        return sum(n for h, n in dq if h > ts - window)
+
+    def _long_add(self, identity: str, key: str, ts: float, n: int) -> None:
+        dq = self.long_ledger[(identity, key)]
+        h = ts - ts % 3600
+        if dq and dq[-1][0] == h:
+            dq[-1] = (h, dq[-1][1] + n)
+        else:
+            dq.append((h, n))
 
     def _overrun_amount(self, gid: str, requester: str, sigs: list[dict] | None) -> int:
         """Record count approved for this grant by enough distinct approvers (never the requester).
@@ -238,6 +259,15 @@ class KeyService:
             if approved < action.count and over_budget:
                 return Release(False, f"budget: {key} {used}+{action.count} > {allowance} per 24h for {action.identity}",
                                cls, 0, max(0, allowance - used), shortfall=used + action.count - allowance)
+            lim = self.policy.long.get(action.identity, {}).get(key)
+            if lim and approved < action.count:
+                for w, secs in LONG_WINDOWS:
+                    if w in lim:
+                        lu = self.long_used(action.identity, key, t, secs)
+                        if lu + action.count > int(lim[w]):
+                            return Release(False, f"budget: {key} {lu}+{action.count} > {lim[w]} per {w} for "
+                                                  f"{action.identity}", cls, 0, max(0, int(lim[w]) - lu),
+                                           shortfall=lu + action.count - int(lim[w]))
             ids = action.metadata.get("record_ids")
             nov = self.policy.novelty_for(action.identity, cls)
             new_ids: list[str] = []
@@ -292,6 +322,7 @@ class KeyService:
                     # device-bound: the record key is sent encrypted to the device, never in the clear
                     keys[rid] = wrap_to_device(dek, device_kex, rid) if device_kex is not None else dek
             self.ledger[(action.identity, key)].append((t, action.count))
+            self._long_add(action.identity, key, t, action.count)
             if overrun_key:
                 self.ledger[(action.identity, overrun_key)].append((t, action.count))
             if sess is not None:

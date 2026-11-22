@@ -2,6 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-gateway
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway
   {{- with .Values.gateway.service.annotations }}
@@ -16,6 +17,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Release.Name }}-gateway
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
     app.kubernetes.io/component: gateway
 spec:
@@ -29,6 +31,14 @@ spec:
     spec:
       securityContext: {{- include "ma.podSecurity" . | nindent 8 }}
       automountServiceAccountToken: false
+      affinity:
+        podAntiAffinity:   # prefer one gateway per node (soft: a small cluster still schedules both)
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway }
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -37,7 +47,7 @@ spec:
             matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway }
       containers:
         - name: gateway
-          image: "{{ .Values.image.registry }}/mastyf-authority-gateway:{{ include "ma.tag" . }}"
+          image: "{{ include "ma.image" (list . "gateway") }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --listen=0.0.0.0:{{ .Values.gateway.port }}

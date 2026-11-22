@@ -4,6 +4,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: {{ .Release.Name }}-engine
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
 spec:
   podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine } }
@@ -22,6 +23,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: {{ .Release.Name }}-gateway
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
 spec:
   podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } }
@@ -35,6 +37,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: {{ .Release.Name }}-keyservice
+  namespace: {{ $.Release.Namespace }}
   labels: {{- include "ma.labels" . | nindent 4 }}
 spec:
   podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice } }
@@ -46,5 +49,30 @@ spec:
         - namespaceSelector: {{- toYaml .Values.keyserviceClients.namespaceSelector | nindent 12 }}
         {{- end }}
       ports: [{ port: {{ .Values.keyservice.port }} }]
+    {{- if .Values.keyservice.ha.enabled }}
+    - from: [{ podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice } } }]
+      ports: [{ port: {{ .Values.keyservice.ha.port }} }]
+    {{- end }}
   egress:
     - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    {{- if .Values.keyservice.ha.enabled }}
+    - to: [{ podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice } } }]
+      ports: [{ port: {{ .Values.keyservice.ha.port }} }]
+    - to: [{ podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: witness } } }]
+      ports: [{ port: {{ .Values.keyservice.ha.witnessPort }} }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-witness
+  namespace: {{ $.Release.Namespace }}
+  labels: {{- include "ma.labels" . | nindent 4 }}
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: witness } }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{ podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice } } }]
+      ports: [{ port: {{ .Values.keyservice.ha.witnessPort }} }]
+  egress:
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    {{- end }}

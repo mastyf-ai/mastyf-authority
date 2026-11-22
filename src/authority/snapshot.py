@@ -22,12 +22,15 @@ import random
 from collections import defaultdict, deque
 from pathlib import Path
 
-from .actions import Action
 from .crypto import b64d, b64e, verify
-from .features import WINDOW, Profile
+from .features import Profile
 
-FORMAT = 1
+FORMAT = 3  # 2: the 24 h feature window as per-minute buckets; 3: known networks per identity
 SEP = "\x1f"  # joins tuple keys; cannot appear in identities, action types or destinations from JSON callers
+
+
+class FormatChanged(Exception):
+    """An older snapshot format after an upgrade: ignore it and replay the audit log (not tampering)."""
 
 
 def _k(t: tuple) -> str:
@@ -50,11 +53,6 @@ def dump(auth, now: float) -> dict:
         profiles[ident] = {"n": p.n, "first_ts": p.first_ts, "logc": {t: list(d) for t, d in p.logc.items()},
                            "prefix_seen": p.prefix_seen, "dest_seen": p.dest_seen, "type_seen": p.type_seen,
                            "hours": p.hours}
-    recent = {}
-    for ident, dq in st.recent.items():
-        keep = [a.to_dict() for a in dq if a.ts >= now - WINDOW]
-        if keep:
-            recent[ident] = keep
     rng_state = nv.rng.getstate()
     novelty = {
         "seen": {k: sorted(v) for k, v in nv.seen.items()}, "org": {k: sorted(v) for k, v in nv.org.items()},
@@ -70,13 +68,15 @@ def dump(auth, now: float) -> dict:
         if keep:
             daily[_k(k)] = keep
     return {
-        "profiles": profiles, "recent": recent, "novelty": novelty, "daily": daily,
+        "profiles": profiles, "windows": st.windows_json(), "novelty": novelty, "daily": daily,
         "denials": {k: [t for t in dq if t >= now - 3600] for k, dq in auth.denials.items() if dq},
         "frozen": auth.frozen, "integrity": auth.integrity, "approvals": auth.approvals, "pending": auth.pending,
         "learned_destinations": {_k(k): v for k, v in auth.learned_destinations.items()},
         "review": {str(day): {i: [sc, why] for i, (sc, why) in d.items()} for day, d in auth.review.days.items()},
         "counts": dict(auth.counts),
         "epoch": auth.issuer.epoch,
+        "risk_hist": {k: list(v) for k, v in auth.risk_hist.items() if v},
+        "origins": auth.origins.to_json(),
     }
 
 
@@ -91,9 +91,7 @@ def load(auth, d: dict) -> None:
         pr.prefix_seen, pr.dest_seen, pr.type_seen = p["prefix_seen"], p["dest_seen"], p["type_seen"]
         pr.hours = list(p["hours"])
         st.profiles[ident] = pr
-    st.recent.clear()
-    for ident, acts in d["recent"].items():
-        st.recent[ident] = deque(Action.from_dict(a) for a in acts)
+    st.load_windows(d["windows"])
     n = d["novelty"]
     nv.seen = defaultdict(set, {k: set(v) for k, v in n["seen"].items()})
     nv.org = defaultdict(set, {k: set(v) for k, v in n["org"].items()})
@@ -119,6 +117,7 @@ def load(auth, d: dict) -> None:
     auth.approvals.update(d["approvals"])
     auth.pending.clear()
     auth.pending.update(d["pending"])
+    auth.origins.load(d.get("origins", {}))
     auth.learned_destinations.clear()
     auth.learned_destinations.update({_t(k): v for k, v in d["learned_destinations"].items()})
     auth.review.days.clear()
@@ -127,6 +126,9 @@ def load(auth, d: dict) -> None:
     auth.counts.clear()
     auth.counts.update(d["counts"])
     auth.issuer.epoch = max(auth.issuer.epoch, int(d.get("epoch", 0)))
+    auth.risk_hist.clear()
+    for k, v in d.get("risk_hist", {}).items():
+        auth.risk_hist[k].extend(v)
 
 
 # ------------------------------------------------------------------ signed file
@@ -160,8 +162,10 @@ def read(path: Path, public_key) -> dict | None:
         return None
     doc = json.loads(path.read_bytes())
     body = doc.get("body")
-    if not isinstance(body, dict) or body.get("format") != FORMAT:
-        raise ValueError("snapshot format not recognised")
+    if not isinstance(body, dict):
+        raise ValueError("snapshot not recognised")
+    if body.get("format") != FORMAT:
+        raise FormatChanged(f"snapshot format {body.get('format')} (this version writes {FORMAT})")
     digest = hashlib.sha256(_canon(body)).hexdigest()
     if digest != doc.get("sha256") or not verify(public_key, b64d(doc.get("sig", "")), digest.encode()):
         raise ValueError("snapshot signature does not verify")

@@ -25,12 +25,14 @@ import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
+from fnmatch import fnmatchcase
 
 from .actions import SENSITIVE, Action, ActionError
 from .audit import AuditLog
 from .crypto import b64d, b64e, verify
 from .features import DAY, HOUR, MIN_PROFILE_EVENTS, FeatureState, dest_key
-from .agents import AgentSessions
+from .agents import OUTBOUND, AgentSessions
+from .origins import Origins, origin_key
 from .novelty import NoveltyScorer, ReviewQueue
 from .grants import GrantIssuer
 from .model import RiskModel
@@ -58,10 +60,44 @@ class Decision:
     grant: str | None = None
     stage: str = ""
     approved_by: str | None = None
+    raw_risk: float | None = None  # before per-identity calibration (audited: restarts rebuild baselines)
     meta: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if v not in (None, {}, "")}
+
+
+def _always(entry: str, a: Action) -> bool:
+    """policy always_escalate entry: an action type ("storage.delete"), or a type scoped to resources
+    ("storage.delete@s3://*"): deleting a bucket always asks, deleting a restorable page in an app does not
+    (on Wikipedia's admin log one admin deleted 118k pages in 45 days - tools/wiki_pilot.py)."""
+    t, sep, pat = entry.partition("@")
+    return t == a.action_type and (not sep or fnmatchcase(a.resource, pat))
+
+
+_ALWAYS_CACHE: dict[int, tuple] = {}
+
+
+def _always_hit(p, a: Action) -> bool:
+    """Exact entries (type, or type@resource without wildcards) are looked up; patterns are matched. Policies
+    can list thousands of crown-jewel resources this way at no cost per decision."""
+    key = (id(p.always_escalate), len(p.always_escalate))
+    c = _ALWAYS_CACHE.get(key[0])
+    if c is None or c[0] != key:
+        types, exact, pats = set(), set(), []
+        for e in p.always_escalate:
+            t, sep, pat = e.partition("@")
+            if not sep:
+                types.add(t)
+            elif any(ch in pat for ch in "*?["):
+                pats.append(e)
+            else:
+                exact.add((t, pat))
+        c = _ALWAYS_CACHE[key[0]] = (key, types, exact, pats)
+        if len(_ALWAYS_CACHE) > 64:
+            _ALWAYS_CACHE.pop(next(iter(_ALWAYS_CACHE)))
+    _, types, exact, pats = c
+    return a.action_type in types or (a.action_type, a.resource) in exact or any(_always(e, a) for e in pats)
 
 
 class Authority:
@@ -82,6 +118,7 @@ class Authority:
         self.now = now
         self.approver_keys = approver_keys or {}  # approver identity -> Ed25519 public key
         self.novelty = NoveltyScorer()
+        self.origins = Origins()  # networks each identity calls from (origins.py)
         self.review = ReviewQueue(per_day=5)  # quiet cases for a human, a few a day
         self.agents = AgentSessions(policy, devices, alert=lambda kind, **kw: self._alert(kind, **kw),
                                     audit=self.audit.append, now=self.now)
@@ -93,6 +130,7 @@ class Authority:
         self.pending: dict[str, dict] = {}  # fingerprint -> escalated request awaiting a human
         self.daily: dict[tuple[str, str], deque] = defaultdict(deque)  # allowed volume, rolling 24h
         self.denials: dict[str, deque] = defaultdict(deque)
+        self.risk_hist: dict[str, deque] = defaultdict(lambda: deque(maxlen=self.BASELINE_KEEP))
         self.alerts: deque = deque(maxlen=5000)  # newest alerts; older ones are in the audit log
         self.counts: dict[str, int] = defaultdict(int)  # metrics: decisions by verdict/stage
         self._lock = threading.RLock()
@@ -183,6 +221,10 @@ class Authority:
                     self.novelty.observe(a, learn=verdict == ALLOW)
                     if verdict == ALLOW:
                         self.daily[(a.identity, a.action_type)].append((a.ts, a.count))
+                        if ev.get("origin"):
+                            self.origins.observe(a.identity, ev["origin"], a.ts)
+                        if ev.get("raw_risk") is not None and ev.get("stage") in ("allow", "approval"):
+                            self.risk_hist[a.identity].append(ev["raw_risk"])
                     if verdict == ESCALATE and fp:
                         if len(self.pending) >= self.MAX_PENDING:
                             self.pending.pop(next(iter(self.pending)))
@@ -207,6 +249,8 @@ class Authority:
                     self.pending.pop(ev.get("fingerprint"), None)
                 elif kind == "promotion":
                     self.issuer.epoch = max(self.issuer.epoch, int(ev.get("epoch", 0)))
+                elif kind == "origin_learned":
+                    self.origins.observe(ev["identity"], ev["origin"], rec["ts"])
                 elif kind == "destination_learned":
                     self.learned_destinations[(ev["identity"], ev["destination"])] = rec["ts"]
                 elif kind == "integrity_report":
@@ -236,6 +280,14 @@ class Authority:
         self.learned_destinations[key] = a.ts
         self.audit.append({"type": "destination_learned", "identity": a.identity, "destination": key[1],
                            "why": why})
+
+    def _learn_origin(self, a: Action, why: str) -> None:
+        """Ask once for networks: an approved call's network becomes known for that identity (audited)."""
+        key = origin_key(a.metadata)
+        if key is None or key in (self.origins.nets.get(a.identity) or {}):
+            return
+        self.origins.observe(a.identity, key, a.ts)
+        self.audit.append({"type": "origin_learned", "identity": a.identity, "origin": key, "why": why})
 
     def deny(self, fingerprint: str, approver: str, reason: str) -> bool:
         with self._lock:
@@ -342,11 +394,17 @@ class Authority:
                 used = self._daily_used(a.identity, a.action_type, a.ts)
                 if used + a.count > th["per_day"]:
                     escalations.append(f"{a.action_type} 24h volume {used + a.count} > daily limit {th['per_day']}")
-        if a.action_type in p.always_escalate:
+        if _always_hit(p, a):
             escalations.append(f"{a.action_type} always needs approval")
         if (a.destination and not matches(dest_key(a.destination), p.destinations_allow)
-                and (a.identity, dest_key(a.destination)) not in self.learned_destinations):
+                and (a.identity, dest_key(a.destination)) not in self.learned_destinations
+                and not (rule.kind == "agent" and self.agents.approved_destination(a))):
             escalations.append(f"destination {dest_key(a.destination)} not on the allowlist")
+        if p.raw.get("origins", {}).get("enabled"):
+            why_origin = self.origins.check(a.identity, origin_key(a.metadata), a.action_type in SENSITIVE,
+                                            strict=matches(a.identity, p.raw["origins"].get("strict", [])))
+            if why_origin:
+                escalations.append(why_origin)
 
         risk = None
         model_deny = False
@@ -354,6 +412,13 @@ class Authority:
         # binding and ask-once destinations judge instead (on real enterprise sign-in logs the behavioural
         # layers interrupted people ~31 times a day; device binding alone, 0.2 - see PILOTS.md)
         behavioural = a.action_type not in self.policy.raw.get("model", {}).get("skip", [])
+        if rule.kind == "agent" and a.action_type not in SENSITIVE and (
+                a.action_type not in OUTBOUND or self.agents.approved_destination(a)):
+            # an agent's in-task work (reads, test runs inside its approved repository) is bounded by the
+            # manifest and the session totals (outbound only to destinations the person named); the behavioural
+            # model (trained on people and services) judges what can do harm: other outbound, anything sensitive. On 20k real SWE-agent runs the model refused
+            # ordinary test loops as "highly anomalous" (agent_pilot.py)
+            behavioural = False
         if self.model is not None and behavioural:
             try:
                 risk = self.model.score(self.state.features(a))
@@ -364,9 +429,28 @@ class Authority:
         # novelty: first-time behaviour weighted by how rare it is here, plus slow build-up
         nov, nov_why = self.novelty.risk(a) if behavioural else (0.0, [])
         self.review.note(a.identity, a.ts, nov, nov_why)
+        nov_reasons: list[str] = []
         if nov > (risk or 0.0):
             risk = round(nov, 4)
-            escalations.extend(nov_why[:3])
+            nov_reasons = nov_why[:3]
+        raw_risk = risk
+        # Per-identity calibration: judged against this identity's own normal (its allowed actions' scores),
+        # so an account that is always busy (CI bots, merge queues) is not flagged for being itself, but is
+        # flagged when it departs from its own pattern. Without enough history (or with the policy switch
+        # off) nothing changes. If an identity's normal is already at the top of the scale, the behavioural
+        # layers cannot tell anything about it: they step aside (and say so in the review queue); limits,
+        # budgets, bait records and policy rules still apply in full.
+        base = self._risk_baseline(a.identity) if behavioural and risk is not None else None
+        if base is not None:
+            if base >= 0.999 or risk <= base:
+                if risk >= p.escalate_at:
+                    self.review.note(a.identity, a.ts, risk, [f"within its own normal (baseline {base:.2f})"])
+                risk, nov_reasons = 0.0, []
+            else:
+                risk = round((risk - base) / (1 - base), 4)
+                if risk < p.escalate_at:
+                    nov_reasons = []
+        escalations.extend(nov_reasons)
         if risk is not None:
             if self._warming_up(a):
                 # Cold start: the model knows nothing about this identity yet, so it may ask but never refuse,
@@ -384,16 +468,18 @@ class Authority:
         if approval:
             approval["used"] = True
             self._learn_destination(a, f"approved by {approval['approver']}")
+            self._learn_origin(a, f"approved by {approval['approver']}")
             reasons = [f"approved by {approval['approver']}: {approval['reason']}"] + escalations
             if model_deny:
                 reasons.append(f"model risk {risk:.2f} overridden by approval")
-            return self._allow(a, D(ALLOW, reasons, "approval", risk=risk, approved_by=approval["approver"]))
+            return self._allow(a, D(ALLOW, reasons, "approval", risk=risk, approved_by=approval["approver"],
+                                    raw_risk=raw_risk))
         if model_deny:
             return D(DENY, [f"behaviour highly anomalous for {a.identity} (risk {risk:.2f})"] + escalations,
-                     "model", risk=risk)
+                     "model", risk=risk, raw_risk=raw_risk)
         if escalations:
-            return D(ESCALATE, escalations, "escalate", risk=risk)
-        return self._allow(a, D(ALLOW, ["within policy and normal behaviour"], "allow", risk=risk))
+            return D(ESCALATE, escalations, "escalate", risk=risk, raw_risk=raw_risk)
+        return self._allow(a, D(ALLOW, ["within policy and normal behaviour"], "allow", risk=risk, raw_risk=raw_risk))
 
     # ---- helpers ----------------------------------------------------------
     def _allow(self, a: Action, d: Decision) -> Decision:
@@ -416,6 +502,33 @@ class Authority:
         return ap
 
     MAX_PENDING = 1000
+    BASELINE_MIN, BASELINE_KEEP = 50, 500
+
+    def _risk_baseline(self, identity: str) -> float | None:
+        """99th percentile of this identity's own recent scores on allowed actions (None: too little history,
+        or policy model.per_identity_calibration is false)."""
+        if not self.policy.raw.get("model", {}).get("per_identity_calibration", False):
+            return None
+        h = self.risk_hist.get(identity)
+        if not h or len(h) < self.BASELINE_MIN:
+            return None
+        srt = sorted(h)
+        return srt[int(0.99 * (len(srt) - 1))]
+
+    def note_baseline(self, a: Action) -> None:
+        """Learning period (shadow mode, `authority learn`): score an ordinary action into the baseline."""
+        behavioural = a.action_type not in self.policy.raw.get("model", {}).get("skip", [])
+        if not behavioural:
+            return
+        r = None
+        if self.model is not None:
+            try:
+                r = self.model.score(self.state.features(a))
+            except Exception:  # noqa: BLE001
+                r = None
+        nov, _ = self.novelty.risk(a)
+        r = max(r or 0.0, nov)
+        self.risk_hist[a.identity].append(round(r, 4))
 
     def note_replica(self, has_seq: int) -> None:
         with self._replica_cv:
@@ -505,8 +618,12 @@ class Authority:
         self.state.observe(a, learn=allowed)
         self.novelty.observe(a, learn=allowed)
         self.agents.record(a, allowed)
+        okey = origin_key(a.metadata)
         if allowed:
+            self.origins.observe(a.identity, okey, a.ts)
             self.daily[(a.identity, a.action_type)].append((a.ts, a.count))
+            if d.raw_risk is not None and d.stage in ("allow", "approval"):  # a person confirmed it is normal
+                self.risk_hist[a.identity].append(d.raw_risk)
         if d.verdict == DENY and d.stage not in ("identity", "canary"):
             dq = self.denials[a.identity]
             dq.append(a.ts)
@@ -527,4 +644,6 @@ class Authority:
                         resource=a.resource, reasons=d.reasons)
         rec = {"type": "decision", **{k: v for k, v in d.to_dict().items() if k != "grant"},
                "action": {k: v for k, v in a.to_dict().items() if k != "metadata"}}
+        if okey:
+            rec["origin"] = okey  # network prefix only, never the full address
         self.audit.append(rec)

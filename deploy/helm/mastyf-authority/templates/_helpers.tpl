@@ -20,3 +20,8 @@ runAsGroup: {{ .Values.podSecurity.runAsUser }}
 fsGroup: {{ .Values.podSecurity.fsGroup }}
 seccompProfile: { type: RuntimeDefault }
 {{- end -}}
+{{- define "ma.image" -}}
+{{- $root := index . 0 -}}{{- $name := index . 1 -}}
+{{- $d := index ($root.Values.image.digests | default dict) $name | default "" -}}
+{{- if $d -}}{{ $root.Values.image.registry }}/mastyf-authority-{{ $name }}@{{ $d }}{{- else -}}{{ $root.Values.image.registry }}/mastyf-authority-{{ $name }}:{{ include "ma.tag" $root }}{{- end -}}
+{{- end -}}

@@ -2,7 +2,10 @@
 image:
   registry: ghcr.io/mastyf-ai
   tag: ""            # defaults to v<appVersion>, the release tag
-  pullPolicy: IfNotPresent
+  # pin by digest (from the signed release: cosign verify ... ghcr.io/mastyf-ai/mastyf-authority-<name>:<tag>);
+  # a digest set here is used instead of the tag
+  digests: { authority: "", gateway: "", keyservice: "" }
+  pullPolicy: Always
 
 secrets:
   signingKey: mastyf-signing-key        # keys: signing_key.pem (ONE key shared by the engines), authority.pub.pem
@@ -12,6 +15,7 @@ secrets:
   gatewayTls: mastyf-gateway-tls        # keys: tls.crt, tls.key, ca.crt (cert-manager layout); SAN must include <release>-gateway
   keyserviceTls: mastyf-keyservice-tls  # keys: server.crt, server.key (SAN <release>-keyservice), ca.crt (signed server.crt),
                                         #       clients-ca.crt (signs client certs), client.crt, client.key (the engines' client cert)
+  keyserviceHaTls: mastyf-keyservice-ha-tls
   kek: mastyf-kek                       # key: kek.b64 (32 bytes, base64). Prefer keyservice.kekCommand with your KMS.
 
 policy:
@@ -30,7 +34,7 @@ engine:
   snapshotSeconds: 300
   resources:
     requests: { cpu: "2", memory: 2Gi }
-    limits: { memory: 6Gi }
+    limits: { cpu: "4", memory: 6Gi }
 
 gateway:
   replicas: 2
@@ -41,16 +45,24 @@ gateway:
   service: { type: ClusterIP, annotations: {} }
   resources:
     requests: { cpu: 500m, memory: 64Mi }
-    limits: { memory: 256Mi }
+    limits: { cpu: "2", memory: 256Mi }
 
 keyservice:
   port: 8443
+  # High availability: two nodes (synchronous replication) + witnesses that grant the primary lease.
+  # Needs secrets.keyserviceHaTls (ha.crt, ha.key, ha-ca.crt; SANs: <release>-ks-a-0.<release>-ks-a,
+  # <release>-ks-b-0.<release>-ks-b, <release>-witness-N.<release>-witness).
+  ha:
+    enabled: false
+    port: 9443
+    witnesses: 1          # 1 or 3
+    witnessPort: 9444
   storage: { size: 20Gi, storageClassName: "" }
   # A command printing the base64 KEK (e.g. a KMS decrypt). Empty: the KEK file from secrets.kek is used.
   kekCommand: ""
   resources:
     requests: { cpu: "1", memory: 256Mi }
-    limits: { memory: 1Gi }
+    limits: { cpu: "2", memory: 1Gi }
 
 # Namespaces whose pods may reach the key service (your applications that fetch record keys).
 keyserviceClients:

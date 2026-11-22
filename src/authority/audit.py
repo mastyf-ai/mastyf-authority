@@ -132,6 +132,7 @@ class AuditLog:
         self.now = now
         self.segment_bytes = segment_bytes
         self._lock = threading.Lock()
+        self._sync_lock = threading.Lock()
         self.records: deque = deque(maxlen=50000)  # newest records: replication to a standby, tests, metrics
         self._seq = 0
         self._head = GENESIS
@@ -180,11 +181,28 @@ class AuditLog:
     def _syncer(self, every: float) -> None:
         while True:
             time.sleep(every)
+            if self._dirty:
+                self._sync_to(self._seq)
+
+    def _sync_to(self, seq: int) -> None:
+        """fsync without holding the append lock (a slow disk must not stall every decision); returns once
+        everything up to `seq` is on disk. Concurrent callers share one fsync."""
+        with self._sync_lock:
+            if self.synced_seq >= seq:
+                return
             with self._lock:
-                if self._dirty and self._f is not None:
-                    self._fsync()
+                f, upto = self._f, self._seq
+                self._dirty = False
+            if f is None:
+                return
+            try:
+                os.fsync(f.fileno())
+            except (OSError, ValueError):  # closed by a rotation meanwhile: the rotation synced it
+                pass
+            self.synced_seq = max(self.synced_seq, upto)
 
     def _fsync(self) -> None:
+        """Under the append lock (rotation, close): sync now."""
         os.fsync(self._f.fileno())
         self._dirty = False
         self.synced_seq = self._seq
@@ -197,20 +215,22 @@ class AuditLog:
             rec["sig"] = b64e(self.signer.sign(h.encode()))
             if event.get("type") not in ROUTINE:
                 self.last_critical_seq = rec["seq"]
+            critical = False
             if self._f is not None:
                 self._f.write((json.dumps(rec, default=str) + "\n").encode())
                 if self._seg_first is None:
                     self._seg_first = rec["seq"]
                 self._seq, self._head = rec["seq"], h
                 self._dirty = True
-                if event.get("type") not in ROUTINE:
-                    self._fsync()
+                critical = event.get("type") not in ROUTINE
                 if self._f.tell() >= self.segment_bytes:
                     self._rotate()
             else:
                 self._seq, self._head = rec["seq"], h
             self.records.append(rec)
-            return rec
+        if critical:
+            self._sync_to(rec["seq"])  # on disk before the caller hears back
+        return rec
 
     def append_raw(self, rec: dict) -> None:
         """A standby writes the active engine's record verbatim (already checked by the caller), so its
@@ -224,12 +244,12 @@ class AuditLog:
                     self._seg_first = rec["seq"]
                 self._dirty = True
             self._seq, self._head = rec["seq"], rec["hash"]
-            if self._f is not None:
-                if rec["event"].get("type") not in ROUTINE:
-                    self._fsync()
-                if self._f.tell() >= self.segment_bytes:
-                    self._rotate()
+            critical = self._f is not None and rec["event"].get("type") not in ROUTINE
+            if self._f is not None and self._f.tell() >= self.segment_bytes:
+                self._rotate()
             self.records.append(rec)
+        if critical:
+            self._sync_to(rec["seq"])
 
     def since(self, after: int, limit: int) -> list[dict]:
         """Records with seq > after (oldest first), from memory when recent, else from the files."""
@@ -263,9 +283,8 @@ class AuditLog:
         self._seg_first = None
 
     def flush(self) -> None:
-        with self._lock:
-            if self._f is not None and self._dirty:
-                self._fsync()
+        if self._f is not None and self._dirty:
+            self._sync_to(self._seq)
 
     def close(self) -> None:
         with self._lock:

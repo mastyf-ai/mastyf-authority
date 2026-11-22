@@ -26,6 +26,7 @@ class GrantIssuer:
         self.ttl = ttl_seconds
         self.now = now
         self.epoch = 0  # raised when a standby engine is promoted (failover); see failover.py
+        self.shard = ""  # the engine pair's shard (sharded deployments): the key service keeps an epoch per shard
 
     def issue(self, action: Action, decision_id: str, constraints: dict | None = None) -> str:
         iat = self.now()
@@ -42,6 +43,8 @@ class GrantIssuer:
         }
         if self.epoch:
             payload["ep"] = self.epoch
+        if self.shard:
+            payload["sh"] = self.shard
         body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return b64e(body) + "." + b64e(self.signer.sign(body))
 

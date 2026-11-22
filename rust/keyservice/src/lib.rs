@@ -17,6 +17,7 @@ pub mod binding;
 pub mod gates;
 pub mod ha;
 pub mod http;
+pub mod oidc;
 pub mod fuzzing;
 pub mod undo;
 
@@ -30,7 +31,7 @@ use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::{URL_SAFE, URL_SAFE_NO_PAD};
 use base64::Engine;
-use ed25519_dalek::{Signature, Verifier as _, VerifyingKey};
+use ed25519_dalek::{Signature, VerifyingKey};
 use rand_core::{OsRng, RngCore};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
@@ -228,7 +229,12 @@ pub struct BudgetPolicy {
     /// identity -> class -> max overrun records per 24 h. None: section absent (unlimited);
     /// present: a missing entry means 0.
     pub overrun_max: Option<HashMap<String, HashMap<String, u64>>>,
+    /// identity -> ledger key -> (records per 7 days, records per 28 days); u64::MAX = no limit. A patient
+    /// attacker cannot take the full daily budget every day (tools/adaptive_attack.py).
+    pub long: HashMap<String, HashMap<String, (u64, u64)>>,
 }
+
+pub const LONG_KEEP: f64 = 28.0 * DAY;
 
 pub const NOVELTY_WINDOW: f64 = 30.0 * DAY;
 
@@ -307,8 +313,24 @@ impl BudgetPolicy {
                 Some(out)
             }
         };
+        let mut long = HashMap::new();
+        if let Some(m) = v.get("long_budgets").and_then(Value::as_object) {
+            for (ident, per) in m {
+                if ident.starts_with('_') {
+                    continue;
+                }
+                let mut pk = HashMap::new();
+                for (k, lim) in per.as_object().ok_or("long_budgets entries must be objects")? {
+                    check(k)?;
+                    let w = lim.get("7d").map(|x| x.as_u64().ok_or("7d must be a non-negative integer")).transpose()?;
+                    let m4 = lim.get("28d").map(|x| x.as_u64().ok_or("28d must be a non-negative integer")).transpose()?;
+                    pk.insert(k.clone(), (w.unwrap_or(u64::MAX), m4.unwrap_or(u64::MAX)));
+                }
+                long.insert(ident.clone(), pk);
+            }
+        }
         Ok(BudgetPolicy { classes, budgets, overrun_signatures, novelty, canary_records, device_bound, purpose_bound,
-                          overrun_max })
+                          overrun_max, long })
     }
 
     pub fn classify(&self, resource: &str) -> Option<&str> {
@@ -340,15 +362,22 @@ impl BudgetPolicy {
 
 // ---------------------------------------------------------------- grants
 
-fn b64d(s: &str) -> Result<Vec<u8>, String> {
+pub(crate) fn b64d(s: &str) -> Result<Vec<u8>, String> {
     URL_SAFE_NO_PAD
         .decode(s.trim_end_matches('='))
         .or_else(|_| URL_SAFE.decode(s))
         .map_err(|_| "bad base64".to_string())
 }
 
-fn verify_sig(pk: &VerifyingKey, sig: &[u8], msg: &[u8]) -> bool {
-    Signature::from_slice(sig).map(|s| pk.verify(msg, &s).is_ok()).unwrap_or(false)
+/// Keys outside the prime-order subgroup are refused: small-order keys verify signatures anyone can make
+/// (Wycheproof "identity public key universal forgery"), mixed-order keys verify differently across
+/// libraries. Honestly generated keys are never either. Signatures are checked strictly (no small-order R).
+pub fn key_ok(pk: &VerifyingKey) -> bool {
+    !pk.is_weak() && pk.to_edwards().is_torsion_free()
+}
+
+pub fn verify_sig(pk: &VerifyingKey, sig: &[u8], msg: &[u8]) -> bool {
+    key_ok(pk) && Signature::from_slice(sig).map(|s| pk.verify_strict(msg, &s).is_ok()).unwrap_or(false)
 }
 
 pub struct GrantVerifier {
@@ -502,7 +531,7 @@ impl GrantCheck {
             GrantCheck::Quorum(q) => q.verify(token, action, now),
         }?;
         let ep = p.get("ep").and_then(Value::as_u64).unwrap_or(0);
-        let min = MIN_ENGINE_EPOCH.load(Ordering::SeqCst);
+        let min = engine_epoch(p.get("sh").and_then(Value::as_str).unwrap_or(""));
         if ep < min {
             return Err(format!("grant from a superseded authority engine (epoch {ep} < {min})"));
         }
@@ -736,10 +765,46 @@ pub fn approver_signed(keys: &HashMap<String, VerifyingKey>, devs: Option<&Appro
 /// A promoted standby engine raises it (signed `fence` op) before deciding anything, so grants from a
 /// superseded primary that is still running are refused everywhere grants are checked. One key
 /// service per process (the state-directory lock), so a process-wide value is the service's value.
+/// Per shard (engine pair) when the deployment is sharded: each pair fails over on its own, so one pair's
+/// promotion never fences another's grants. The unsharded deployment is shard "".
 pub static MIN_ENGINE_EPOCH: AtomicU64 = AtomicU64::new(0);
+static SHARD_EPOCHS: std::sync::OnceLock<Mutex<HashMap<String, u64>>> = std::sync::OnceLock::new();
 
-pub fn fence_message(epoch: u64) -> Vec<u8> {
-    format!("mastyf-fence|{epoch}").into_bytes()
+pub fn engine_epoch(shard: &str) -> u64 {
+    if shard.is_empty() {
+        return MIN_ENGINE_EPOCH.load(Ordering::SeqCst);
+    }
+    SHARD_EPOCHS.get_or_init(Default::default).lock().unwrap().get(shard).copied().unwrap_or(0)
+}
+
+fn raise_engine_epoch(shard: &str, n: u64) {
+    if shard.is_empty() {
+        MIN_ENGINE_EPOCH.fetch_max(n, Ordering::SeqCst);
+    } else {
+        let mut m = SHARD_EPOCHS.get_or_init(Default::default).lock().unwrap();
+        let e = m.entry(shard.to_string()).or_insert(0);
+        *e = (*e).max(n);
+    }
+}
+
+/// Signed messages name the shard (unsharded: the original format).
+fn tag(op: &str, shard: &str) -> String {
+    if shard.is_empty() { format!("mastyf-{op}") } else { format!("mastyf-{op}@{shard}") }
+}
+
+/// Promotion: the new engine's epoch and the last confirmed critical record it holds (formal/Failover.tla).
+pub fn fence_message(shard: &str, epoch: u64, floor_seq: u64, floor_hash: &str) -> Vec<u8> {
+    format!("{}|{epoch}|{floor_seq}|{floor_hash}", tag("fence", shard)).into_bytes()
+}
+
+/// The active engine records its newest confirmed critical record before telling the caller.
+pub fn floor_message(shard: &str, epoch: u64, seq: u64, hash: &str) -> Vec<u8> {
+    format!("{}|{epoch}|{seq}|{hash}", tag("floor", shard)).into_bytes()
+}
+
+/// Break glass: every copy of the confirmed records is gone and an operator accepts losing them.
+pub fn floor_reset_message(shard: &str, seq: u64, reason: &str) -> Vec<u8> {
+    format!("{}|{seq}|{reason}", tag("floor-reset", shard)).into_bytes()
 }
 
 pub fn unfreeze_message(identity: &str, until: u64) -> Vec<u8> {
@@ -780,7 +845,28 @@ struct Inner {
     seen: HashMap<(String, String), HashMap<String, f64>>,
     frozen: HashMap<String, String>,
     new_ledger: HashMap<(String, String), VecDeque<(f64, u64)>>,
+    /// (hour start, records) per ledger key, last 28 days: the weekly and 4-weekly budgets
+    long_ledger: HashMap<(String, String), VecDeque<(f64, u64)>>,
     wrapped: HashMap<String, (String, Vec<u8>)>,
+    /// per shard: newest critical engine record confirmed to a caller (seq, hash); a standby must hold it
+    floor: HashMap<String, (u64, String)>,
+}
+
+fn long_add(l: &mut HashMap<(String, String), VecDeque<(f64, u64)>>, id: &str, key: &str, ts: f64, n: u64) {
+    let dq = l.entry((id.to_string(), key.to_string())).or_default();
+    let h = ts - ts.rem_euclid(3600.0);
+    match dq.back_mut() {
+        Some((bh, bn)) if *bh == h => *bn = bn.saturating_add(n),
+        _ => dq.push_back((h, n)),
+    }
+}
+
+fn long_used(l: &mut HashMap<(String, String), VecDeque<(f64, u64)>>, id: &str, key: &str, now: f64, window: f64) -> u64 {
+    let dq = l.entry((id.to_string(), key.to_string())).or_default();
+    while dq.front().is_some_and(|(h, _)| *h <= now - LONG_KEEP) {
+        dq.pop_front();
+    }
+    dq.iter().filter(|(h, _)| *h > now - window).fold(0u64, |a, (_, n)| a.saturating_add(*n))
 }
 
 pub struct KeyService {
@@ -816,7 +902,8 @@ impl KeyService {
             kek: Aes256Gcm::new_from_slice(&k).expect("32-byte key"),
             old_kek: None,
             inner: Mutex::new(Inner { journal: None, devices: None, cases: None, verifier, ledger: HashMap::new(),
-                                      seen: HashMap::new(), frozen: HashMap::new(), new_ledger: HashMap::new(), wrapped: HashMap::new() }),
+                                      seen: HashMap::new(), frozen: HashMap::new(), new_ledger: HashMap::new(),
+                                      long_ledger: HashMap::new(), wrapped: HashMap::new(), floor: HashMap::new() }),
         }
     }
 
@@ -916,6 +1003,7 @@ impl KeyService {
                     let n = ev["n"].as_u64().unwrap_or(0);
                     inner.ledger.entry((id.clone(), ev["key"].as_str().unwrap_or("").to_string())).or_default()
                         .push_back((ts, n));
+                    long_add(&mut inner.long_ledger, &id, ev["key"].as_str().unwrap_or(""), ts, n);
                     if let Some(ids) = ev.get("ids").and_then(Value::as_array) {
                         let k = (id, ev["cls"].as_str().unwrap_or("").to_string());
                         let seen = inner.seen.entry(k.clone()).or_default();
@@ -931,7 +1019,19 @@ impl KeyService {
                     true
                 }
                 Some("fence") => {
-                    MIN_ENGINE_EPOCH.fetch_max(ev["ep"].as_u64().unwrap_or(0), Ordering::SeqCst);
+                    raise_engine_epoch(ev["sh"].as_str().unwrap_or(""), ev["ep"].as_u64().unwrap_or(0));
+                    true
+                }
+                Some("floor_reset") => {
+                    inner.floor.remove(ev["sh"].as_str().unwrap_or(""));
+                    true
+                }
+                Some("floor") => {
+                    let seq = ev["seq"].as_u64().unwrap_or(0);
+                    let f = inner.floor.entry(ev["sh"].as_str().unwrap_or("").to_string()).or_default();
+                    if seq > f.0 {
+                        *f = (seq, ev["hash"].as_str().unwrap_or("").to_string());
+                    }
                     true
                 }
                 Some("freeze") => {
@@ -1074,21 +1174,93 @@ impl KeyService {
 
     /// Raise the minimum engine epoch. Signed by an authority key over "mastyf-fence|<epoch>"; journaled
     /// and synced (and so replicated to an HA standby) before it takes effect. Never lowers it.
-    pub fn fence(&self, epoch: u64, sig_b64: &str) -> Result<u64, String> {
-        let msg = fence_message(epoch);
-        let keys = self.inner.lock().unwrap().verifier.keys();
-        if !keys.iter().any(|k| b64_verify(k, sig_b64, &msg)) {
+    /// Promotion fence (formal/Failover.tla, proved with TLC): the epoch must be strictly above every earlier
+    /// one (two engines never share an epoch, even if one only looks dead), and the new engine must hold the
+    /// newest confirmed critical record (no confirmed freeze or approval is lost). Err carries the reason; the
+    /// current minimum is returned by `min_engine_epoch()` so the caller can retry with the next epoch.
+    pub fn fence(&self, shard: &str, epoch: u64, floor_seq: u64, floor_hash: &str, sig_b64: &str) -> Result<u64, String> {
+        let msg = fence_message(shard, epoch, floor_seq, floor_hash);
+        let mut inner = self.inner.lock().unwrap();
+        if !inner.verifier.keys().iter().any(|k| b64_verify(k, sig_b64, &msg)) {
             return Err("fence not signed by an authority key".into());
         }
-        let cur = MIN_ENGINE_EPOCH.load(Ordering::SeqCst);
+        let cur = engine_epoch(shard);
         if epoch <= cur {
-            return Ok(cur);
+            return Err(format!("epoch {epoch} is not above the fenced epoch {cur}"));
         }
-        let mut inner = self.inner.lock().unwrap();
-        Self::journal(&mut inner, json!({"e": "fence", "ep": epoch}))?;
+        let f = inner.floor.get(shard).cloned().unwrap_or_default();
+        if f.0 > 0 && (floor_seq != f.0 || floor_hash != f.1) {
+            return Err(format!("not promotable: this engine does not hold confirmed record {} (it offered {floor_seq})",
+                               f.0));
+        }
+        let mut ev = json!({"e": "fence", "ep": epoch});
+        if !shard.is_empty() {
+            ev["sh"] = json!(shard);
+        }
+        Self::journal(&mut inner, ev)?;
+        raise_engine_epoch(shard, epoch);
         drop(inner);
         self.commit()?;
-        Ok(MIN_ENGINE_EPOCH.fetch_max(epoch, Ordering::SeqCst).max(epoch))
+        Ok(epoch)
+    }
+
+    /// Operator break glass (`authority failover reset-floor --accept-loss`): signed by the engine key over the
+    /// current floor and a reason, journaled; afterwards any engine of that shard can be promoted.
+    pub fn floor_reset(&self, shard: &str, seq: u64, reason: &str, sig_b64: &str) -> Result<(), String> {
+        let msg = floor_reset_message(shard, seq, reason);
+        let mut inner = self.inner.lock().unwrap();
+        if !inner.verifier.keys().iter().any(|k| b64_verify(k, sig_b64, &msg)) {
+            return Err("floor reset not signed by an authority key".into());
+        }
+        if reason.trim().len() < 8 {
+            return Err("give a reason (at least 8 characters)".into());
+        }
+        let cur = inner.floor.get(shard).map(|f| f.0).unwrap_or(0);
+        if seq != cur {
+            return Err(format!("the floor is at {cur}, not {seq}"));
+        }
+        let mut ev = json!({"e": "floor_reset", "from": seq, "why": reason});
+        if !shard.is_empty() {
+            ev["sh"] = json!(shard);
+        }
+        Self::journal(&mut inner, ev)?;
+        inner.floor.remove(shard);
+        drop(inner);
+        self.commit()
+    }
+
+    pub fn min_engine_epoch(&self, shard: &str) -> u64 {
+        engine_epoch(shard)
+    }
+
+    pub fn floor(&self, shard: &str) -> (u64, String) {
+        self.inner.lock().unwrap().floor.get(shard).cloned().unwrap_or_default()
+    }
+
+    /// The active engine's confirmation of a critical record. Refused from a replaced engine (its epoch is
+    /// below the fence), which must then not confirm anything to its caller.
+    pub fn set_floor(&self, shard: &str, epoch: u64, seq: u64, hash: &str, sig_b64: &str) -> Result<u64, String> {
+        let msg = floor_message(shard, epoch, seq, hash);
+        let mut inner = self.inner.lock().unwrap();
+        if !inner.verifier.keys().iter().any(|k| b64_verify(k, sig_b64, &msg)) {
+            return Err("floor not signed by an authority key".into());
+        }
+        let cur = engine_epoch(shard);
+        if epoch < cur {
+            return Err(format!("fenced: engine epoch {epoch} is below {cur}"));
+        }
+        let f = inner.floor.entry(shard.to_string()).or_default();
+        if seq > f.0 {
+            *f = (seq, hash.to_string());
+            let mut ev = json!({"e": "floor", "seq": seq, "hash": hash});
+            if !shard.is_empty() {
+                ev["sh"] = json!(shard);
+            }
+            Self::journal(&mut inner, ev)?;
+            drop(inner);
+            self.commit()?;
+        }
+        Ok(seq)
     }
 
     fn journal(inner: &mut Inner, v: Value) -> Result<(), String> {
@@ -1245,6 +1417,25 @@ impl KeyService {
             r.shortfall = (used + action.count).saturating_sub(allowance);
             return r;
         }
+        if approved < action.count {
+            if let Some(&(w7, w28)) = self.policy.long.get(&action.identity).and_then(|m| m.get(&key)) {
+                for (name, lim, win) in [("7d", w7, 7.0 * DAY), ("28d", w28, 28.0 * DAY)] {
+                    if lim == u64::MAX {
+                        continue;
+                    }
+                    let lu = long_used(&mut inner.long_ledger, &action.identity, &key, now, win);
+                    if lu.checked_add(action.count).is_none_or(|s| s > lim) {
+                        let mut r = Release::no(
+                            format!("budget: {key} {lu}+{} > {lim} per {name} for {}", action.count, action.identity),
+                            Some(&class),
+                        );
+                        r.remaining = Some(lim.saturating_sub(lu));
+                        r.shortfall = (lu.saturating_add(action.count)).saturating_sub(lim);
+                        return r;
+                    }
+                }
+            }
+        }
         // novelty: limit records this identity has not been given in the last 30 days
         let nov = self.policy.novelty.get(&action.identity).and_then(|m| m.get(&class)).copied();
         let mut new_count: u64 = 0;
@@ -1348,6 +1539,7 @@ impl KeyService {
         if Self::journal(&mut inner, ev).is_err() {
             return Release::no("journal write failed: refusing (fail closed)", Some(&class));
         }
+        long_add(&mut inner.long_ledger, &action.identity, &key, now, action.count);
         inner.ledger.entry((action.identity.clone(), key)).or_default().push_back((now, action.count));
         if overrun_used {
             if Self::journal(&mut inner, json!({"e": "rel", "id": action.identity, "key": overrun_key, "cls": class,

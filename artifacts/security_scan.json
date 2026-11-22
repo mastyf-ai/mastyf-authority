@@ -1,0 +1,100 @@
+{
+ "when": "2026-11-22 11:31",
+ "testssl": {
+  "checks": 80,
+  "medium_or_worse": [
+   [
+    "cert_chain_of_trust",
+    "CRITICAL",
+    "failed (chain incomplete)."
+   ],
+   [
+    "cert_revocation",
+    "HIGH",
+    "Neither CRL nor OCSP URI provided"
+   ]
+  ],
+  "protocols": [
+   [
+    "SSLv2",
+    "not offered"
+   ],
+   [
+    "SSLv3",
+    "not offered"
+   ],
+   [
+    "TLS1",
+    "not offered"
+   ],
+   [
+    "TLS1_1",
+    "not offered"
+   ],
+   [
+    "TLS1_2",
+    "not offered"
+   ],
+   [
+    "TLS1_3",
+    "offered with final"
+   ]
+  ]
+ },
+ "zap": {
+  "alerts": [
+   [
+    "SQL Injection",
+    "High (Medium)",
+    16
+   ],
+   [
+    "Cross-Origin-Resource-Policy Header Missing or Invalid",
+    "Low (Medium)",
+    4
+   ],
+   [
+    "X-Content-Type-Options Header Missing",
+    "Low (Medium)",
+    4
+   ],
+   [
+    "A Client Error response code was returned by the server",
+    "Informational (High)",
+    52
+   ],
+   [
+    "Non-Storable Content",
+    "Informational (Medium)",
+    5
+   ],
+   [
+    "Re-examine Cache-control Directives",
+    "Informational (Low)",
+    2
+   ]
+  ],
+  "high_or_medium": [
+   [
+    "SQL Injection",
+    "High (Medium)",
+    16
+   ]
+  ],
+  "summary": [
+   [
+    "FAIL-NEW",
+    "0"
+   ],
+   [
+    "WARN-NEW",
+    "3"
+   ],
+   [
+    "PASS",
+    "117"
+   ]
+  ]
+ },
+ "healthy_after_scan": "{\"ok\": true, \"model\": true, \"policy\": \"2026-11-19.1\", \"role\": \"active\", \"epoch\": 0, \"seq\": 340}"
+}

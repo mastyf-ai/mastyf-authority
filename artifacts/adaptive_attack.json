@@ -1,0 +1,340 @@
+{
+ "summary": {
+  "alice: customer records": {
+   "naive_taken_avg": 0,
+   "adaptive_taken_avg": 40189,
+   "victim_normal_avg": 29641,
+   "adaptive_vs_normal": 1.36,
+   "adaptive_ever_interrupted": 0
+  },
+  "bob: production secrets": {
+   "naive_taken_avg": 0,
+   "adaptive_taken_avg": 99,
+   "victim_normal_avg": 59,
+   "adaptive_vs_normal": 1.67,
+   "adaptive_ever_interrupted": 0
+  }
+ },
+ "runs": [
+  {
+   "seed": 100,
+   "goal": "alice: customer records",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 29069,
+   "budget_per_day": 5420,
+   "long_budget": {
+    "7d": 16010,
+    "28d": 48030
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "key service refused: data budget": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 100,
+   "goal": "alice: customer records",
+   "attacker": "adaptive",
+   "records_taken": 47532,
+   "victim_normal_28d": 29069,
+   "budget_per_day": 5420,
+   "long_budget": {
+    "7d": 16010,
+    "28d": 48030
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 52
+  },
+  {
+   "seed": 100,
+   "goal": "bob: production secrets",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 52,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 30,
+    "28d": 90
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "secret.read count 50000 > per-action limit 5": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 100,
+   "goal": "bob: production secrets",
+   "attacker": "adaptive",
+   "records_taken": 87,
+   "victim_normal_28d": 52,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 30,
+    "28d": 90
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 18
+  },
+  {
+   "seed": 101,
+   "goal": "alice: customer records",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 28034,
+   "budget_per_day": 5210,
+   "long_budget": {
+    "7d": 14060,
+    "28d": 42180
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "key service refused: data budget": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 101,
+   "goal": "alice: customer records",
+   "attacker": "adaptive",
+   "records_taken": 38871,
+   "victim_normal_28d": 28034,
+   "budget_per_day": 5210,
+   "long_budget": {
+    "7d": 14060,
+    "28d": 42180
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 62
+  },
+  {
+   "seed": 101,
+   "goal": "bob: production secrets",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 63,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 40,
+    "28d": 120
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "secret.read count 50000 > per-action limit 5": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 101,
+   "goal": "bob: production secrets",
+   "attacker": "adaptive",
+   "records_taken": 116,
+   "victim_normal_28d": 63,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 40,
+    "28d": 120
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 33
+  },
+  {
+   "seed": 102,
+   "goal": "alice: customer records",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 27811,
+   "budget_per_day": 5360,
+   "long_budget": {
+    "7d": 13610,
+    "28d": 40830
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "key service refused: data budget": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 102,
+   "goal": "alice: customer records",
+   "attacker": "adaptive",
+   "records_taken": 39666,
+   "victim_normal_28d": 27811,
+   "budget_per_day": 5360,
+   "long_budget": {
+    "7d": 13610,
+    "28d": 40830
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 54
+  },
+  {
+   "seed": 102,
+   "goal": "bob: production secrets",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 60,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 30,
+    "28d": 90
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "secret.read count 50000 > per-action limit 5": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 102,
+   "goal": "bob: production secrets",
+   "attacker": "adaptive",
+   "records_taken": 90,
+   "victim_normal_28d": 60,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 30,
+    "28d": 90
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 18
+  },
+  {
+   "seed": 103,
+   "goal": "alice: customer records",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 30244,
+   "budget_per_day": 4650,
+   "long_budget": {
+    "7d": 12140,
+    "28d": 36420
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "key service refused: data budget": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 103,
+   "goal": "alice: customer records",
+   "attacker": "adaptive",
+   "records_taken": 35697,
+   "victim_normal_28d": 30244,
+   "budget_per_day": 4650,
+   "long_budget": {
+    "7d": 12140,
+    "28d": 36420
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 66
+  },
+  {
+   "seed": 103,
+   "goal": "bob: production secrets",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 59,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 30,
+    "28d": 90
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "secret.read count 50000 > per-action limit 5": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 103,
+   "goal": "bob: production secrets",
+   "attacker": "adaptive",
+   "records_taken": 88,
+   "victim_normal_28d": 59,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 30,
+    "28d": 90
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 23
+  },
+  {
+   "seed": 104,
+   "goal": "alice: customer records",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 33045,
+   "budget_per_day": 5590,
+   "long_budget": {
+    "7d": 13420,
+    "28d": 40260
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "key service refused: data budget": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 104,
+   "goal": "alice: customer records",
+   "attacker": "adaptive",
+   "records_taken": 39177,
+   "victim_normal_28d": 33045,
+   "budget_per_day": 5590,
+   "long_budget": {
+    "7d": 13420,
+    "28d": 40260
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 50
+  },
+  {
+   "seed": 104,
+   "goal": "bob: production secrets",
+   "attacker": "naive",
+   "records_taken": 0,
+   "victim_normal_28d": 62,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 40,
+    "28d": 120
+   },
+   "interrupted_after_days": 0.4,
+   "why": {
+    "secret.read count 50000 > per-action limit 5": 1
+   },
+   "moves": 1
+  },
+  {
+   "seed": 104,
+   "goal": "bob: production secrets",
+   "attacker": "adaptive",
+   "records_taken": 113,
+   "victim_normal_28d": 62,
+   "budget_per_day": 20,
+   "long_budget": {
+    "7d": 40,
+    "28d": 120
+   },
+   "interrupted_after_days": null,
+   "why": {},
+   "moves": 33
+  }
+ ]
+}

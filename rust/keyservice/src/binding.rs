@@ -8,7 +8,6 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use ed25519_dalek::pkcs8::DecodePublicKey;
-use ed25519_dalek::Verifier as _;
 use hkdf::Hkdf;
 use rand_core::{OsRng, RngCore};
 use serde_json::Value;
@@ -133,7 +132,7 @@ impl DeviceRegistry {
         let mut msg = ad.clone();
         msg.extend_from_slice(&Sha256::digest(&cd));
         let ok = match &d.key {
-            SignKey::Ed(pk) => ed25519_dalek::Signature::from_slice(&sig).map(|s| pk.verify(&msg, &s).is_ok()).unwrap_or(false),
+            SignKey::Ed(pk) => crate::verify_sig(pk, &sig, &msg),
             SignKey::P256(pt) => ring::signature::UnparsedPublicKey::new(&ring::signature::ECDSA_P256_SHA256_ASN1, pt)
                 .verify(&msg, &sig).is_ok(),
         };
@@ -200,7 +199,7 @@ impl CaseRegistry {
     pub fn assign(&mut self, case_id: &str, identity: &str, records: Vec<String>, exp: u64, sig_b64: &str) -> bool {
         let ok = b64d(sig_b64).ok()
             .and_then(|s| ed25519_dalek::Signature::from_slice(&s).ok())
-            .map(|s| self.pk.verify(&case_message(case_id, identity, &records, exp), &s).is_ok())
+            .map(|s| crate::verify_sig(&self.pk, &s.to_bytes(), &case_message(case_id, identity, &records, exp)))
             .unwrap_or(false);
         if ok {
             self.restore(case_id, identity, records, exp as f64);

@@ -273,3 +273,95 @@ def test_old_engine_rejoins_automatically_as_standby(tmp_path):
         assert any(p.name.startswith("diverged-") for p in (tmp_path / "a").iterdir())
     finally:
         c.stop()
+
+
+def _sig(signer, msg):
+    from authority.crypto import b64e
+    return b64e(signer.sign(msg.encode()))
+
+
+def test_key_service_fences_strictly_and_keeps_the_floor(tmp_path):
+    """The key-service side of formal/Failover.tla: epochs strictly increase (an equal epoch is refused, so
+    two engines never share one), a replaced engine cannot record a confirmation, a standby without the
+    newest confirmed record cannot be promoted - and all of it survives a key-service restart."""
+    c = Cluster(tmp_path)
+    try:
+        c.start_ks()
+        s = c.signer
+        assert c.ks({"op": "fence", "epoch": 1, "floor_seq": 0, "floor_hash": "", "sig": _sig(s, "mastyf-fence|1|0|")})["ok"]
+        r = c.ks({"op": "fence", "epoch": 1, "floor_seq": 0, "floor_hash": "", "sig": _sig(s, "mastyf-fence|1|0|")})
+        assert not r["ok"] and "not above" in r["reason"] and r["min_engine_epoch"] == 1, r
+        forged = c.ks({"op": "fence", "epoch": 9, "floor_seq": 0, "floor_hash": "", "sig": _sig(Signer.generate(), "mastyf-fence|9|0|")})
+        assert not forged["ok"] and "signed" in forged["reason"]
+        assert c.ks({"op": "floor", "epoch": 1, "seq": 7, "hash": "h7", "sig": _sig(s, "mastyf-floor|1|7|h7")})["ok"]
+        old = c.ks({"op": "floor", "epoch": 0, "seq": 8, "hash": "h8", "sig": _sig(s, "mastyf-floor|0|8|h8")})
+        assert not old["ok"] and old["reason"].startswith("fenced"), old
+        behind = c.ks({"op": "fence", "epoch": 2, "floor_seq": 5, "floor_hash": "h5", "sig": _sig(s, "mastyf-fence|2|5|h5")})
+        assert not behind["ok"] and "not promotable" in behind["reason"], behind
+        c.procs["ks"].kill()
+        c.procs["ks"].wait()
+        c.procs["ks"] = subprocess.Popen(
+            [str(BIN / "mastyf-keyservice"), "--policy", str(ROOT / "policies/default.json"),
+             "--authority-key", str(c.tmp / "authority.pub.pem"), "--state-dir", str(c.tmp / "ks"),
+             "--socket", str(c.sock)], stderr=subprocess.DEVNULL)
+        c._wait(lambda: c.ks({"op": "health"}).get("ok"))
+        assert c.ks({"op": "floor_get"}) | {} == {"ok": True, "seq": 7, "hash": "h7", "min_engine_epoch": 1}
+        assert c.ks({"op": "fence", "epoch": 2, "floor_seq": 7, "floor_hash": "h7", "sig": _sig(s, "mastyf-fence|2|7|h7")})["ok"]
+        # break glass: an operator accepts losing confirmed records (signed, with a reason, journaled)
+        bad = c.ks({"op": "floor_reset", "seq": 7, "reason": "both disks lost", "sig": _sig(Signer.generate(), "mastyf-floor-reset|7|both disks lost")})
+        assert not bad["ok"]
+        assert c.ks({"op": "floor_reset", "seq": 7, "reason": "both disks lost",
+                     "sig": _sig(s, "mastyf-floor-reset|7|both disks lost")})["ok"]
+        assert c.ks({"op": "floor_get"})["seq"] == 0
+        assert c.ks({"op": "fence", "epoch": 3, "floor_seq": 0, "floor_hash": "", "sig": _sig(s, "mastyf-fence|3|0|")})["ok"]
+    finally:
+        c.stop()
+
+
+def test_freeze_confirmed_while_standby_stalled_is_never_lost(tmp_path):
+    """The counterexample TLC found in the old protocol: the standby stalls, a freeze is confirmed after the
+    replication timeout, the active engine dies, a gateway promotes the stale standby - and the freeze is gone.
+    Now the confirmation records a floor in the key service first, so the stale standby is not promotable;
+    the engine that holds the freeze can come back and serve with it."""
+    c = Cluster(tmp_path)
+    try:
+        c.start_ks()
+        c.start_engine("a", "active", ["--peer", f"https://localhost:{c.pg}"])
+        c.start_gateway()
+        # the standby is cut off from the active engine (it follows an address that answers nothing), so it
+        # never receives the freeze: the active engine confirms it anyway (no standby attached), floor first
+        c.start_engine("b", "standby", ["--follow", f"https://localhost:{_free_port()}"])
+        st, _ = c.call("POST", "/v1/freeze", "k-admin-000000000000000000", {"identity": "human:bob", "reason": "stolen laptop"})
+        assert st == 200
+        floor = c.ks({"op": "floor_get"})
+        assert floor["seq"] == c.health(c.pa)["seq"] and floor["seq"] > c.health(c.pb)["seq"], floor
+        c.procs["a"].kill()
+        c.procs["a"].wait()
+        st, r = c.call("POST", "/v1/promote", "k-replica-0000000000000000", {"reason": "test"}, port=c.pb)
+        assert st == 409 and "not promotable" in r["error"], r  # it would have lost the freeze
+        time.sleep(3)  # the gateway's own failover attempts are refused the same way
+        assert c.health(c.pb)["role"] == "standby"
+        c.start_engine("a", "active", ["--peer", f"https://localhost:{c.pg}"])
+        c._wait(lambda: c.health(c.pa)["role"] == "active", limit=30)
+        assert c.health(c.pa)["epoch"] >= 1
+        assert c.call("GET", "/v1/alerts", "k-admin-000000000000000000")[1]["frozen"].get("human:bob")
+    finally:
+        c.stop()
+
+
+def test_set_aside_keeps_the_shared_history(tmp_path):
+    """A diverged engine keeps the records both engines share and sets aside only what came after the split,
+    so it rejoins by copying a few records instead of the whole log."""
+    from authority.audit import AuditLog, iter_records, verify_log
+    from authority.failover import set_aside
+    s = Signer.load_or_create(tmp_path / "signing_key.pem")
+    log = AuditLog(tmp_path / "audit.jsonl", s, segment_bytes=3000, sync_interval=0)
+    for i in range(120):
+        log.append({"type": "decision", "i": i})
+    log.close()
+    where = set_aside(tmp_path, "test split at 101", keep_upto=100)
+    kept = list(iter_records(tmp_path / "audit.jsonl"))
+    assert [r["seq"] for r in kept] == list(range(1, 101))
+    assert verify_log(tmp_path / "audit.jsonl", s.public_key)[0]
+    assert (tmp_path / "signing_key.pem").exists() and oct((tmp_path / "audit.jsonl").stat().st_mode)[-3:] == "600"
+    assert len(list(iter_records(Path(where) / "audit.jsonl"))) == 120  # nothing signed is deleted

@@ -31,12 +31,20 @@ use mastyf_keyservice::gates::{check, ChangeGate, GatePolicy};
 use mastyf_keyservice::{Action, BudgetPolicy, GrantCheck, GrantVerifier, Journal, KeyService, QuorumVerifier};
 use serde_json::{json, Value};
 
+/// `--name value` or `--name=value`
 fn arg(args: &[String], name: &str) -> Option<String> {
-    args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
+    let eq = format!("{name}=");
+    args.iter().enumerate().find_map(|(i, a)| {
+        if a == name { args.get(i + 1).cloned() } else { a.strip_prefix(&eq).map(String::from) }
+    })
 }
 
+/// every `--name value` / `--name=value`
 fn args_all(args: &[String], name: &str) -> Vec<String> {
-    args.iter().enumerate().filter(|(_, a)| *a == name).filter_map(|(i, _)| args.get(i + 1).cloned()).collect()
+    let eq = format!("{name}=");
+    args.iter().enumerate().filter_map(|(i, a)| {
+        if a == name { args.get(i + 1).cloned() } else { a.strip_prefix(&eq).map(String::from) }
+    }).collect()
 }
 
 static STATE_LOCK: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
@@ -67,10 +75,35 @@ fn handle(svc: &Svc, line: &str, fake_clock: bool) -> Value {
                     Some(Err(e)) => json!({"ok": false, "reason": format!("bad action: {e}")}),
                     None => json!({"ok": false, "reason": "missing action"}),
                 },
-                Some("fence") => match ks.fence(req["epoch"].as_u64().unwrap_or(0), req["sig"].as_str().unwrap_or("")) {
-                    Ok(e) => json!({"ok": true, "min_engine_epoch": e}),
-                    Err(e) => json!({"ok": false, "reason": e}),
-                },
+                Some("fence") => {
+                    let sh = req["shard"].as_str().unwrap_or("");
+                    match ks.fence(sh, req["epoch"].as_u64().unwrap_or(0), req["floor_seq"].as_u64().unwrap_or(0),
+                                   req["floor_hash"].as_str().unwrap_or(""), req["sig"].as_str().unwrap_or("")) {
+                        Ok(e) => json!({"ok": true, "min_engine_epoch": e}),
+                        Err(e) => json!({"ok": false, "reason": e, "min_engine_epoch": ks.min_engine_epoch(sh)}),
+                    }
+                }
+                Some("floor") => {
+                    let sh = req["shard"].as_str().unwrap_or("");
+                    match ks.set_floor(sh, req["epoch"].as_u64().unwrap_or(0), req["seq"].as_u64().unwrap_or(0),
+                                       req["hash"].as_str().unwrap_or(""), req["sig"].as_str().unwrap_or("")) {
+                        Ok(n) => json!({"ok": true, "seq": n}),
+                        Err(e) => json!({"ok": false, "reason": e, "min_engine_epoch": ks.min_engine_epoch(sh)}),
+                    }
+                }
+                Some("floor_reset") => {
+                    let sh = req["shard"].as_str().unwrap_or("");
+                    match ks.floor_reset(sh, req["seq"].as_u64().unwrap_or(0), req["reason"].as_str().unwrap_or(""),
+                                         req["sig"].as_str().unwrap_or("")) {
+                        Ok(()) => json!({"ok": true}),
+                        Err(e) => json!({"ok": false, "reason": e}),
+                    }
+                }
+                Some("floor_get") => {
+                    let sh = req["shard"].as_str().unwrap_or("");
+                    let (seq, hash) = ks.floor(sh);
+                    json!({"ok": true, "seq": seq, "hash": hash, "min_engine_epoch": ks.min_engine_epoch(sh)})
+                }
                 Some("kek_status") => {
                     let (current, previous, unopenable) = ks.kek_status();
                     json!({"ok": true, "current": current, "previous": previous, "unopenable": unopenable})
@@ -323,6 +356,14 @@ fn main() {
         return;
     }
     if args.get(1).map(String::as_str) == Some("witness") {
+        // the witness syncs its state on every change: on SIGTERM it can exit at once
+        if let Ok(mut sigs) = signal_hook::iterator::Signals::new([signal_hook::consts::SIGTERM, signal_hook::consts::SIGINT]) {
+            std::thread::spawn(move || {
+                if sigs.forever().next().is_some() {
+                    std::process::exit(0);
+                }
+            });
+        }
         let need = |n: &str| arg(&args, n).unwrap_or_else(|| die(&format!("witness: {n} required")));
         mastyf_keyservice::ha::run_witness(&need("--listen"), &need("--state"), &ha_tls(&args)).unwrap_or_else(|e| die(&e));
         return;
@@ -399,7 +440,10 @@ fn main() {
             use std::os::unix::fs::PermissionsExt;
             let dir = std::path::Path::new(dir);
             std::fs::create_dir_all(dir).unwrap_or_else(|e| die(&e.to_string()));
-            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap_or_else(|e| die(&e.to_string()));
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700)).unwrap_or_else(|e| {
+                die(&format!("cannot make the state directory {} private (chmod 700): {e}. It must be owned by this \
+                              user; on a mounted volume, point --state-dir at a subdirectory (e.g. /state/data)", dir.display()))
+            });
             if STATE_LOCK.get().is_none() {
                 STATE_LOCK.set(lock_state_dir(dir)).ok();
             }
@@ -466,6 +510,20 @@ fn main() {
         u.approver_devices.set(Arc::clone(&appr_devs)).ok();
     }
     let ks = Arc::new(Svc { ks: keysvc, gate, undo });
+    // SIGTERM/SIGINT (Kubernetes, systemd): make the journal durable and exit at once. Without a handler,
+    // PID 1 in a container ignores SIGTERM, so every rollout waited out the 30 s grace period.
+    {
+        let ks = ks.clone();
+        let mut sigs = signal_hook::iterator::Signals::new([signal_hook::consts::SIGTERM, signal_hook::consts::SIGINT])
+            .unwrap_or_else(|e| die(&e.to_string()));
+        std::thread::spawn(move || {
+            if sigs.forever().next().is_some() {
+                let ok = ks.ks.flush();
+                eprintln!("mastyf-keyservice: stopping (journal {})", if ok.is_ok() { "synced" } else { "sync FAILED" });
+                std::process::exit(if ok.is_ok() { 0 } else { 1 });
+            }
+        });
+    }
     if let Some(p) = appr_path {
         let a = Arc::clone(&appr_devs);
         std::thread::spawn(move || {

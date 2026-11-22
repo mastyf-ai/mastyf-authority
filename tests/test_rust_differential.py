@@ -39,6 +39,15 @@ def test_python_and_rust_agree_with_novelty_limits(tmp_path):
     run_diff(tmp_path, pol, novelty=True)
 
 
+def test_python_and_rust_agree_with_weekly_limits(tmp_path):
+    pol = json.loads((ROOT / "policies/default.json").read_text())
+    pol["data_budgets"]["long_budgets"] = {
+        "human:alice": {"crm.customer": {"7d": 1200, "28d": 3000}, "crm.customer@s3://corp-reports": {"7d": 900}},
+        "human:bob": {"secret": {"28d": 12}, "ssh.key": {"7d": 15, "28d": 30}},
+        "svc:export-job": {"crm.customer@s3://corp-warehouse": {"7d": 50000, "28d": 120000}}}
+    assert run_diff(tmp_path, pol, novelty=False) > 0  # the weekly limits were exercised (and agreed)
+
+
 def run_diff(tmp_path, pol, novelty):
     rng = random.Random(1234 + novelty)
     (tmp_path / "policy.json").write_text(json.dumps(pol))
@@ -65,6 +74,7 @@ def run_diff(tmp_path, pol, novelty):
                 assert json.loads(proc.stdout.readline())["ok"]
     used_grants: list[tuple[str, Action]] = []
     mismatches, n = [], 3000
+    long_hits = 0
     for i in range(n):
         t[0] += rng.choice([1, 30, 600, 3600, 20000])
         a = Action(rng.choice(IDS), rng.choice(TYPES), rng.choice(RES), rng.choice([0, 1, 5, 40, 999, 3000, 9000, 25000]),
@@ -110,6 +120,9 @@ def run_diff(tmp_path, pol, novelty):
         rr = json.loads(proc.stdout.readline())
         same = (rp.ok == rr["ok"] and (not rp.ok or rp.remaining == rr["remaining"])
                 and rp.reason.split(":")[0] == rr["reason"].split(":")[0])
+        if " per 7d" in rp.reason or " per 28d" in rp.reason:
+            long_hits += 1
+            same = same and rp.reason == rr["reason"]
         if not same:
             mismatches.append({"i": i, "action": a.to_dict(), "py": [rp.ok, rp.reason, rp.remaining],
                                "rust": [rr["ok"], rr["reason"], rr.get("remaining")]})
@@ -117,3 +130,36 @@ def run_diff(tmp_path, pol, novelty):
     proc.stdin.close()
     proc.wait(timeout=10)
     assert not mismatches, json.dumps(mismatches[:5], indent=1, ensure_ascii=False)
+    return long_hits
+
+
+def test_weekly_limit_sequence_python_and_rust(tmp_path):
+    """Taking the full daily budget every day stops at the weekly limit, in both services, and frees up
+    again as the week rolls on."""
+    pol = json.loads((ROOT / "policies/default.json").read_text())
+    pol["data_budgets"]["long_budgets"] = {"human:alice": {"crm.customer": {"7d": 2500, "28d": 6000}}}
+    (tmp_path / "policy.json").write_text(json.dumps(pol))
+    auth = Signer.generate()
+    (tmp_path / "auth.pem").write_text(auth.public_pem())
+    (tmp_path / "appr.json").write_text("{}")
+    t = [1_000_000.0]
+    py = KeyService(BudgetPolicy.from_dict(pol["data_budgets"]), auth.public_key, {}, now=lambda: t[0])
+    iss = GrantIssuer(auth, 60, now=lambda: t[0])
+    proc = subprocess.Popen([str(BIN), "--policy", str(tmp_path / "policy.json"), "--authority-key",
+                             str(tmp_path / "auth.pem"), "--approvers", str(tmp_path / "appr.json"), "--fake-clock"],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    got = []
+    for day in range(12):
+        t[0] = 1_000_000.0 + day * 86400
+        a = Action("human:alice", "data.read", "db://crm/customers/query", 1000, ts=t[0])
+        g = iss.issue(a, "d")
+        rp = py.release(g, a)
+        proc.stdin.write(json.dumps({"op": "release", "grant": g, "action": a.to_dict(), "overrun": [], "now": t[0]}) + "\n")
+        proc.stdin.flush()
+        rr = json.loads(proc.stdout.readline())
+        assert (rp.ok, rp.reason) == (rr["ok"], rr["reason"]), (day, rp, rr)
+        got.append(rp.ok)
+    proc.stdin.close()
+    proc.wait(timeout=10)
+    # 1000/day against 2500 per 7 days: two days pass, then refused until the first day leaves the window
+    assert got[:3] == [True, True, False] and got[7] is True and sum(got) < 7

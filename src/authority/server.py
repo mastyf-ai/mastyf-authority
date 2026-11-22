@@ -81,7 +81,21 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             c0 = getattr(self, "_crit0", None)
             if c0 is not None and auth.audit.last_critical_seq > c0 and self.path != "/v1/replication":
                 # this request wrote a freeze/approval/denial: the standby has it before the caller hears back
-                auth.wait_replicated(auth.audit.last_critical_seq)
+                seq = auth.audit.last_critical_seq
+                auth.wait_replicated(seq)
+                if getattr(auth, "floor_signer", None) is not None:
+                    # and the key service knows it was confirmed, so no standby without it can be promoted, and
+                    # a replaced engine cannot confirm anything (formal/Failover.tla)
+                    from .failover import Fenced, hash_at, write_floor
+                    try:
+                        auth.audit.flush()
+                        write_floor(auth.floor_signer, auth.issuer.epoch, seq, hash_at(auth, seq) or "")
+                    except Fenced as e:
+                        auth.role = "fenced"
+                        auth._alert("engine_superseded", detail=str(e))
+                        code, obj = 503, {"verdict": DENY, "error": "this engine was replaced; retry", "reasons": [str(e)]}
+                    except (OSError, ValueError, Exception) as e:  # noqa: BLE001
+                        code, obj = 503, {"verdict": DENY, "error": f"not confirmed: key service unreachable ({e})"}
             body = json.dumps(obj).encode()
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
@@ -99,6 +113,14 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             digest = hashlib.sha256(got[7:].encode()).hexdigest()
             for h, who in callers.items():
                 if hmac.compare_digest(h, digest):
+                    if who == "gateway":
+                        # a single sign-on caller: the gateway checked the identity provider's token and says
+                        # who it is (only the gateway's own key may say this)
+                        ident = self.headers.get("X-Authority-Identity", "")
+                        if (not ident or len(ident) > 200 or ident in ("gateway", "replica")
+                                or not all(ch.isalnum() or ch in "._@:/+-" for ch in ident)):
+                            return None
+                        return ident
                     return who
             return None
 
@@ -217,7 +239,8 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
                 return self._static(*STATIC[self.path])
             if self.path == "/healthz":
                 return self._send(200, {"ok": True, "model": auth.model is not None, "policy": auth.policy.version,
-                                        "role": auth.role, "epoch": auth.issuer.epoch, "seq": auth.audit.position[0]})
+                                        "role": auth.role, "epoch": auth.issuer.epoch, "seq": auth.audit.position[0],
+                                        "shard": auth.issuer.shard})
             if self.path == "/metrics":
                 body = auth.metrics().encode()
                 self.send_response(200)
@@ -292,12 +315,15 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
                     if who not in ("replica", "admin"):
                         return self._send(403, {"error": "replication is for the standby engine's key"})
                     after, wait = int(b.get("after", 0)), min(8.0, float(b.get("wait", 0)))
-                    auth.note_replica(after)  # the standby has everything up to `after`
+                    from .failover import hash_at
+                    if after == 0 or b.get("after_hash") == hash_at(auth, after):
+                        auth.note_replica(after)  # the standby has everything up to `after` (same history)
                     end = time.time() + wait
-                    recs = auth.audit.since(after, 2000)
+                    lim = max(1, min(2000, int(b.get("limit", 2000))))
+                    recs = auth.audit.since(after, lim)
                     while not recs and time.time() < end and auth.role == "active":
                         time.sleep(0.05)
-                        recs = auth.audit.since(after, 2000)
+                        recs = auth.audit.since(after, lim)
                     hs, hh = auth.audit.position
                     return self._send(200, {"records": recs, "head_seq": hs, "head_hash": hh,
                                             "epoch": auth.issuer.epoch, "role": auth.role})

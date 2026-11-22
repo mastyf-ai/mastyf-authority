@@ -1,0 +1,18 @@
+{
+ "identity_provider": "quay.io/keycloak/keycloak:26.0.7",
+ "jwks_keys": [
+  "RSA-OAEP",
+  "RS256"
+ ],
+ "checks": {
+  "alice token decides as human:alice": true,
+  "alice token cannot act as bob": true,
+  "tampered token refused": true,
+  "token for another application refused": true,
+  "user named admin is not the admin identity": true,
+  "explicitly mapped secops is admin": true,
+  "engine ignores identity header from a non-gateway caller": true,
+  "expired token refused": true
+ },
+ "all_passed": true
+}
