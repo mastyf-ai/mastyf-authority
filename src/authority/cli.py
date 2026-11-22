@@ -199,6 +199,17 @@ def main(argv: list[str] | None = None) -> None:
 
     v = sub.add_parser("audit-verify", help="verify the audit log chain and signatures")
     v.add_argument("--state", default="state")
+    ev = sub.add_parser("evidence", help="signed audit evidence bundle for SOC 2 / ISO 27001 (evidence.py)")
+    ev.add_argument("--state", required=True)
+    ev.add_argument("--policy", required=True)
+    ev.add_argument("--since", help="ISO date or time (UTC if no zone); default: the start of the log")
+    ev.add_argument("--until", help="ISO date or time; default: now")
+    ev.add_argument("--model")
+    ev.add_argument("--callers")
+    ev.add_argument("--out", required=True)
+    evv = sub.add_parser("evidence-verify", help="check an evidence bundle's signature and file hashes")
+    evv.add_argument("bundle")
+    evv.add_argument("--public-key", required=True, help="the engine's authority.pub.pem")
 
     a = ap.parse_args(argv)
     if a.cmd == "failover":
@@ -368,6 +379,21 @@ def main(argv: list[str] | None = None) -> None:
             replica_key = Path(os.environ["AUTHORITY_REPLICA_KEY_FILE"]).read_text().strip()
         peer_ca = os.environ.get("AUTHORITY_PEER_CA") or None
         auto_role = a.role == "auto"
+
+        def fenced(why: str) -> None:
+            # every path that learns this engine was replaced ends here: it stops deciding at once; under --role
+            # auto (Kubernetes, the chaos harness) it exits so the supervisor restarts it as a standby that follows
+            # the current engine (records it alone holds are set aside as diverged)
+            if auth.role == "fenced":
+                return
+            auth.role = "fenced"
+            auth._alert("engine_superseded", detail=why)
+            print(f"FENCED: {why}; this engine no longer decides" +
+                  (" (restarting as a standby)" if auto_role else ". Rebuild it as a standby (fresh state directory)."),
+                  flush=True)
+            if auto_role:
+                __import__("threading").Timer(2.0, lambda: os._exit(3)).start()
+        auth.on_fenced = fenced
         from .failover import shard as _shard
         auth.issuer.shard = _shard()
         if a.role == "auto":
@@ -441,24 +467,12 @@ def main(argv: list[str] | None = None) -> None:
                     except (OSError, ValueError, FailoverError):
                         continue
                     if cur > auth.issuer.epoch:
-                        auth.role = "fenced"
-                        auth._alert("engine_superseded", detail=f"key service fenced epoch {cur} > {auth.issuer.epoch}")
-                        print(f"FENCED: the key service has epoch {cur} > {auth.issuer.epoch}; this engine no longer "
-                              f"decides", flush=True)
-                        if auto_role:
-                            __import__("threading").Timer(2.0, lambda: os._exit(3)).start()
+                        fenced(f"the key service has epoch {cur} > {auth.issuer.epoch}")
             __import__("threading").Thread(target=fence_watch, daemon=True, name="fence-watch").start()
         if a.peer:
             def superseded(h):
                 if auth.role == "active":
-                    auth.role = "fenced"
-                    auth._alert("engine_superseded", peer_epoch=h.get("epoch"), own_epoch=auth.issuer.epoch)
-                    print(f"FENCED: peer is active at epoch {h.get('epoch')} > {auth.issuer.epoch}; this engine "
-                          f"no longer decides. Rebuild it as a standby (fresh state directory).", flush=True)
-                    if auto_role:
-                        # --role auto (Kubernetes): exit so the supervisor restarts it; it then follows the active
-                        # engine (its extra records, if any, are set aside as diverged)
-                        __import__("threading").Timer(2.0, lambda: os._exit(3)).start()
+                    fenced(f"peer is active at epoch {h.get('epoch')} > {auth.issuer.epoch}")
             watch_peer(auth, a.peer, replica_key, peer_ca, superseded)
         if devices is not None:
             def is_approver(name):
@@ -485,6 +499,21 @@ def main(argv: list[str] | None = None) -> None:
         out = expand(json.loads(Path(a.input).read_text()), d)
         Path(a.output).write_text(json.dumps(out, indent=2))
         print(f"compiled {len(out.get('_compiled_from_teams', []))} teams -> {len(out.get('identities', {}))} identities -> {a.output}")
+    elif a.cmd == "evidence":
+        from .crypto import Signer
+        from .evidence import build
+        key = Path(a.state) / "signing_key.pem"
+        if not key.exists():
+            raise SystemExit(f"no signing key at {key}")
+        b = build(a.state, a.policy, Signer.load_or_create(key), a.since, a.until, a.model, a.callers)
+        Path(a.out).write_bytes(b)
+        print(f"wrote {a.out} ({len(b)} bytes)")
+    elif a.cmd == "evidence-verify":
+        from cryptography.hazmat.primitives.serialization import load_pem_public_key
+        from .evidence import verify
+        ok, msg = verify(Path(a.bundle).read_bytes(), load_pem_public_key(Path(a.public_key).read_bytes()))
+        print(("OK: " if ok else "FAILED: ") + msg)
+        raise SystemExit(0 if ok else 1)
     elif a.cmd == "audit-verify":
         from .audit import verify_log
         from .crypto import Signer

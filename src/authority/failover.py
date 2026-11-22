@@ -368,6 +368,7 @@ def promote(auth, signer, follower: Follower | None, reason: str) -> dict:
             auth.audit.append({"type": "promotion", "epoch": epoch, "reason": reason, "floor_seq": floor_seq})
             auth.issuer.epoch = epoch
             auth.role = ACTIVE
+        print(f"PROMOTED: active at epoch {epoch} ({reason})", flush=True)
         auth._alert("engine_promoted", epoch=epoch, reason=reason)
         return {"ok": True, "role": ACTIVE, "epoch": epoch}
 

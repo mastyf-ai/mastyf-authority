@@ -39,7 +39,7 @@ resource? The things worth protecting:
 | Information disclosure | network sniffing | TLS 1.3 only at the gateway; mTLS to the key service; replication requires TLS off loopback | `tools/security_scan.py` (testssl) |
 | Denial of service | flood the gateway | per-caller rate limit, connection cap, slow-down on bad keys, strict HTTP parser (no smuggling) | `tests/test_rust_gateway.py`, fuzzing |
 | Denial of service | kill the active engine | hot standby, semi-synchronous replication, gateway failover in 2-10 s | `test_failover.py`, `tools/k8s_e2e.py`, `tools/partition_chaos.py` |
-| Elevation of privilege | split brain after a network split | key service hands out strictly increasing epochs; a replaced engine's grants and confirmations are refused | `formal/Failover.tla` (TLC, 4.8 M states), `test_failover.py` |
+| Elevation of privilege | split brain after a network split | key service hands out strictly increasing epochs; a replaced engine's grants and confirmations are refused | `formal/Failover.tla` (TLC: 4.8 M states with two engines, 20 M with three), `test_failover.py` |
 | Elevation of privilege | agent does more than its task | agent sessions: manifest approved by the person's passkey; out-of-task actions refused; 3 strikes revoke | `agents.py`; 500/500 hijacked SWE-agent runs stopped |
 | Elevation of privilege | hijacked admin locks out other admins | crown-jewel rules (acting on admins or protected resources always asks), undo windows and burst freezes | Wikipedia admin log: 60/60 hijacked admins stopped at the first action |
 

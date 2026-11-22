@@ -26,6 +26,7 @@ import os
 import ssl
 import sys
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -97,7 +98,11 @@ class Sink:
             self.f = sys.stdout
 
     def _post(self, url: str, body: bytes, ctype: str, auth: str | None) -> None:
-        req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": ctype})
+        u = urllib.parse.urlsplit(url)
+        if u.scheme != "https" and not (u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost", "::1")):
+            # audit records and SIEM credentials never travel in the clear (and never to file:// or other schemes)
+            raise SystemExit(f"SIEM target must be https:// (http only on this machine): {u.scheme}://{u.hostname}")
+        req =urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": ctype})
         if auth:
             req.add_header("Authorization", auth)
         with urllib.request.urlopen(req, timeout=30, context=self.ctx if url.startswith("https") else None) as r:

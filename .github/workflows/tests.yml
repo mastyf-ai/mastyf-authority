@@ -21,6 +21,10 @@ jobs:
           FUZZ_ITERS=50000 cargo test --release --locked
           cargo build --release --locked --bins
       - run: pip install -e '.[dev]' hypothesis
+      - name: Native scorer (Rust tree walks; tests/test_native.py checks it is bit-identical to Python)
+        run: |
+          cd rust/native && cargo build --release --locked
+          cp target/release/lib_native.so ../../src/authority/_native.abi3.so
       - run: PYTHONPATH=src:tests pytest -q
 
   supply-chain:

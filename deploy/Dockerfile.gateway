@@ -2,10 +2,14 @@
 FROM rust:1.90-slim-bookworm AS build
 WORKDIR /src
 COPY rust/keyservice/ .
-RUN cargo build --release --locked --bin mastyf-gateway
+# static (musl) binary: TLS is rustls, so the runtime image needs no OpenSSL or C library at all
+RUN apt-get update && apt-get install -y --no-install-recommends musl-tools && rm -rf /var/lib/apt/lists/* \
+    && T="$(uname -m)-unknown-linux-musl" && rustup target add "$T" \
+    && cargo build --release --locked --target "$T" --bin mastyf-gateway && mkdir -p out && cp target/"$T"/release/mastyf-* out/ \
+    && rm -f out/*.d
 
-FROM gcr.io/distroless/cc-debian12:nonroot
-COPY --from=build /src/target/release/mastyf-gateway /usr/local/bin/mastyf-gateway
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /src/out/mastyf-gateway /usr/local/bin/mastyf-gateway
 USER nonroot
 EXPOSE 8443
 ENTRYPOINT ["/usr/local/bin/mastyf-gateway"]

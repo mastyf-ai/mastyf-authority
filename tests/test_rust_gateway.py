@@ -38,7 +38,9 @@ def stack(tmp_path):
     port = _free_port()
     gw = subprocess.Popen([str(GW), "--listen", f"127.0.0.1:{port}", "--tls-cert", tls[1], "--tls-key", tls[3],
                            "--callers", str(tmp_path / "callers.json"), "--upstream", f"127.0.0.1:{httpd.server_address[1]}",
-                           "--rate", "20", "--burst", "25"], stderr=subprocess.PIPE, text=True)
+                           # no request hold: this test's client gives up after 1 s, and it checks that a dead
+                           # engine is refused at once (the hold is covered by test_failover / partition_chaos)
+                           "--rate", "20", "--burst", "25", "--hold-ms", "0"], stderr=subprocess.PIPE, text=True)
     ctx = ssl.create_default_context(cafile=tls[5])
     for _ in range(50):
         try:

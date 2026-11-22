@@ -1,5 +1,5 @@
 {
- "when": "2026-11-22 18:40",
+ "when": "2026-11-22 23:05",
  "steps": [
   {
    "step": "cluster",
@@ -10,7 +10,7 @@
   },
   {
    "step": "installed",
-   "seconds": 22
+   "seconds": 26
   },
   {
    "step": "decisions through the gateway",
@@ -22,19 +22,19 @@
   },
   {
    "step": "engine failover",
-   "seconds": 4.0,
+   "seconds": 10.3,
    "engine1": "active",
    "epoch": 2,
    "freeze_kept": true
   },
   {
    "step": "old engine pod rejoined as standby",
-   "seq": 54
+   "seq": 55
   },
   {
    "step": "key service failover to the other node",
    "killed": "t-ks-b-0",
-   "seconds": 5.0,
+   "seconds": 5.6,
    "new_primary": [
     "t-ks-a-0"
    ]
@@ -48,7 +48,7 @@
   },
   {
    "step": "second engine failover (fencing the new key-service primary)",
-   "seconds": 10.3,
+   "seconds": 6.4,
    "engine0": "active",
    "epoch": 3
   },

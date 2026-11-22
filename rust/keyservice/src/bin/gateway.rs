@@ -31,7 +31,7 @@ use sha2::{Digest, Sha256};
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(10);
 
-const PUBLIC: [&str; 5] = ["/healthz", "/approve", "/enroll", "/web/app.js", "/web/app.css"];
+const PUBLIC: [&str; 7] = ["/healthz", "/approve", "/enroll", "/limits", "/web/app.js", "/web/app.css", "/web/sso.json"];
 const GET_API: [&str; 7] = ["/v1/alerts", "/v1/pending", "/v1/public-key", "/v1/devices", "/v1/enroll/pending",
                             "/v1/enroll/status", "/metrics"];
 const POST_API: [&str; 18] = ["/v1/agents/session", "/v1/agents/revoke", "/v1/decide", "/v1/approve", "/v1/deny", "/v1/script/check", "/v1/grant/verify",
@@ -86,6 +86,7 @@ struct Gate {
     open: AtomicUsize,
     max_clients: usize,
     oidc: Option<mastyf_keyservice::oidc::Oidc>, // single sign-on tokens (oidc.rs)
+    hold: Duration,                              // how long a request waits for a failover to finish
     gateway_key: Option<String>,                 // what the gateway presents to engines for SSO callers
 }
 
@@ -162,7 +163,7 @@ fn upstream_call_as(g: &Gate, gi: usize, conn: &mut Option<TcpStream>, method: &
     }
     for attempt in 0..2 {
         if conn.is_none() {
-            let c = TcpStream::connect(target_up).map_err(|e| e.to_string())?;
+            let c = TcpStream::connect(target_up).map_err(|e| format!("connect: {e}"))?;
             let _ = c.set_read_timeout(Some(UPSTREAM_TIMEOUT));
             let _ = c.set_write_timeout(Some(UPSTREAM_TIMEOUT));
             let _ = c.set_nodelay(true);
@@ -197,6 +198,27 @@ fn upstream_call_as(g: &Gate, gi: usize, conn: &mut Option<TcpStream>, method: &
         }
     }
     Err("upstream failed".into())
+}
+
+/// During a failover, hold a request (up to --hold-ms) instead of refusing it, and retry it on the new active
+/// engine - only when it certainly was not processed: no connection, or the engine said it is not active.
+#[allow(clippy::too_many_arguments)]
+fn call_held(g: &Gate, gi: usize, conn: &mut Option<TcpStream>, method: &str, target: &str, auth: Option<&str>,
+             ident: Option<&str>, body: &[u8]) -> Result<Resp, String> {
+    let until = Instant::now() + g.hold;
+    loop {
+        let r = upstream_call_as(g, gi, conn, method, target, auth, ident, body);
+        let retry = match &r {
+            Err(e) => e.starts_with("connect: "),
+            Ok(resp) => resp.status == 503 && std::str::from_utf8(&resp.body)
+                .is_ok_and(|b| b.contains("this authority engine is") || b.contains("\"engine is ")),
+        };
+        if !retry || Instant::now() >= until {
+            return r;
+        }
+        *conn = None;
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 fn read_response(c: &mut TcpStream) -> Result<(Resp, bool), String> {
@@ -306,7 +328,8 @@ fn failover_loop(g: &Gate, gi: usize) {
             continue;
         }
         let Some(key) = g.promote_key.as_deref() else { continue };
-        if let Some(i) = health.iter().position(|h| h.as_ref().is_some_and(|h| h["role"] == "standby")) {
+        // try every standby (one may lack confirmed records: the key service refuses to fence for it)
+        for i in (0..health.len()).filter(|&i| health[i].as_ref().is_some_and(|h| h["role"] == "standby")) {
             eprintln!("mastyf-gateway: shard {:?}: no active engine for {:?}; promoting {}", grp.name, since.elapsed(),
                       grp.upstreams[i]);
             let r = engine_call(&grp.upstreams[i], "POST", "/v1/promote", Some(key),
@@ -316,6 +339,7 @@ fn failover_loop(g: &Gate, gi: usize) {
             if promoted {
                 grp.active.store(i, Ordering::SeqCst); // route to it at once, not at the next health check
                 no_active_since = None;
+                break;
             }
         }
     }
@@ -327,7 +351,8 @@ fn handle(g: &Gate, ip: IpAddr, req: &Req, ups: &mut [Option<TcpStream>]) -> Res
     if req.method != "GET" && req.method != "POST" {
         return json_resp(405, json!({"error": "method not allowed"}));
     }
-    if !(req.query.is_empty() || is_get && req.path == "/v1/enroll/status") {
+    // pages: the sign-in redirect returns with ?code=&state= (read by the page, never forwarded)
+    if !(req.query.is_empty() || is_get && (req.path == "/v1/enroll/status" || PUBLIC.contains(&req.path.as_str()))) {
         return json_resp(400, json!({"error": "query strings not accepted here"}));
     }
     // engines of a shard name it on health and replication calls; everything else is routed by identity
@@ -390,7 +415,7 @@ fn handle(g: &Gate, ip: IpAddr, req: &Req, ups: &mut [Option<TcpStream>]) -> Res
     }
     if is_get {
         let gi = named.unwrap_or_else(|| shard_for(g, who));
-        return upstream_call_as(g, gi, &mut ups[gi], "GET", &target, auth, ident, b"")
+        return call_held(g, gi, &mut ups[gi], "GET", &target, auth, ident, b"")
             .unwrap_or_else(|_| json_resp(502, json!({"error": "authority unavailable"})));
     }
     // POST: strict JSON object, re-encoded
@@ -417,7 +442,7 @@ fn handle(g: &Gate, ip: IpAddr, req: &Req, ups: &mut [Option<TcpStream>]) -> Res
     } else {
         shard_for(g, routing_identity(&req.path, &v, who))
     };
-    match upstream_call_as(g, gi, &mut ups[gi], "POST", &target, auth, ident, &body) {
+    match call_held(g, gi, &mut ups[gi], "POST", &target, auth, ident, &body) {
         Ok(r) => r,
         Err(_) if req.path == "/v1/decide" => fail_closed("authority unavailable"),
         Err(_) => json_resp(502, json!({"error": "authority unavailable"})),
@@ -583,6 +608,7 @@ fn main() {
                                                 arg(&args, "--oidc-claim"), map, arg(&args, "--oidc-identity-format"))
                 .unwrap_or_else(|e| die(&e))
         }),
+        hold: Duration::from_millis(num("--hold-ms", 3000.0) as u64),
         gateway_key: arg(&args, "--gateway-key-file").map(|p| std::fs::read_to_string(p)
             .unwrap_or_else(|e| die(&e.to_string())).trim().to_string()),
     });

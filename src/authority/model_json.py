@@ -92,6 +92,13 @@ class JsonRiskModel:
             (t["features"].tolist(), t["feature"].tolist(), t["threshold"].astype(np.float32).tolist(), t["left"].tolist(),
              t["right"].tolist(), _avg_path(t["n"]).tolist()) for t in self.iso]
         self._iso_norm = len(self.iso) * _avg_path(np.array([self.max_samples]))[0] if self.iso else 1.0
+        # the same scorer in Rust (authority._native, bit-identical: tests/test_native.py); Python stays the reference
+        self._native = None
+        try:
+            from ._native import Scorer
+            self._native = Scorer(json.dumps(d))
+        except (ImportError, ValueError):
+            pass
 
     def supervised_risk(self, X: np.ndarray) -> np.ndarray:
         X = np.asarray(X, dtype=np.float64)
@@ -137,7 +144,24 @@ class JsonRiskModel:
         return np.maximum(self.supervised_risk(X), self.anomaly_risk(X))
 
     def score(self, features: list[float]) -> float:
-        """One row, same result as score_many (tested), ~20x faster for a single decision."""
+        """One row, same result as score_many (tested); in Rust when the native module is built."""
+        if self._native is None:
+            return self.score_py(features)
+        import math
+        x = [float(v) for v in features]
+        sup = 1.0 / (1.0 + math.exp(-self._native.raw(x)))
+        if self._iso_l is None:
+            return sup
+        return max(sup, self._anomaly(self._native.iso_depth(x)))
+
+    def _anomaly(self, depth: float) -> float:
+        s = 2.0 ** (-depth / self._iso_norm)
+        q995, q9999, qmax = self.q
+        span_hi = max(qmax - q9999, 1e-6)
+        return float(np.interp(s, [0.0, q995, q9999, q9999 + 2 * span_hi], [0.0, 0.5, 0.9, 1.0]))
+
+    def score_py(self, features: list[float]) -> float:
+        """The Python reference for one row (~20x faster than score_many for a single decision)."""
         import math
         x = [float(v) for v in features]
         raw = self.base

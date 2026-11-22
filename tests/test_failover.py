@@ -40,12 +40,13 @@ class Cluster:
         self.sock = self.sock_dir / "ks.sock"
         self.procs = {}
         signer = Signer.generate()
-        for d in ("a", "b"):
+        for d in ("a", "b", "c"):
             (tmp / d).mkdir()
         key_a = tmp / "a/signing_key.pem"
-        Signer.load_or_create(key_a)  # creates; both engines must hold the same key
-        shutil.copy(key_a, tmp / "b/signing_key.pem")
-        os.chmod(tmp / "b/signing_key.pem", 0o600)
+        Signer.load_or_create(key_a)  # creates; every engine must hold the same key
+        for d in ("b", "c"):
+            shutil.copy(key_a, tmp / d / "signing_key.pem")
+            os.chmod(tmp / d / "signing_key.pem", 0o600)
         self.signer = Signer.load_or_create(key_a)
         (tmp / "authority.pub.pem").write_text(self.signer.public_pem())
         self.dana = Signer.generate()
@@ -56,6 +57,7 @@ class Cluster:
         tls = _certs(tmp)
         self.cert, self.tkey, self.ca = tls[1], tls[3], tls[5]
         self.pa, self.pb, self.pg = _free_port(), _free_port(), _free_port()
+        self.pc = _free_port()  # a third engine (two standbys)
         del signer
 
     def start_ks(self):
@@ -66,7 +68,7 @@ class Cluster:
         self._wait(lambda: self.ks({"op": "health"}).get("ok"))
 
     def start_engine(self, name, role, extra=()):
-        port = self.pa if name == "a" else self.pb
+        port = {"a": self.pa, "b": self.pb}.get(name, self.pc)
         env = {**os.environ, "PYTHONPATH": str(ROOT / "src"), "AUTHORITY_CALLERS": str(self.tmp / "callers.json"),
                "AUTHORITY_APPROVER_KEYS": str(self.tmp / "approvers.json"), "AUTHORITY_KEYSERVICE": f"unix:{self.sock}",
                "AUTHORITY_REPLICA_KEY": "k-replica-0000000000000000", "AUTHORITY_PEER_CA": self.ca}

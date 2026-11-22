@@ -62,3 +62,12 @@ def test_every_event_type_maps():
                {"type": "promotion", "epoch": 2}, {"type": "something_new"}):
         o = to_ocsf({"seq": 1, "ts": 1.0, "hash": "h", "event": ev})
         assert o["class_uid"] in (3005, 2004, 0) and o["metadata"]["version"] == "1.3.0"
+
+
+def test_siem_refuses_cleartext_and_odd_schemes():
+    import pytest
+
+    from authority.siem import Sink
+    for to in ("webhook+http://siem.corp.example/in", "webhook+file:///etc/passwd", "splunk+ftp://x"):
+        with pytest.raises(SystemExit):
+            Sink(to).send([{"time": 0, "metadata": {"uid": "u"}}])

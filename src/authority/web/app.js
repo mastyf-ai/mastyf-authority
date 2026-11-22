@@ -25,13 +25,58 @@ async function api(path, body) {
   if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
   return j;
 }
+// Single sign-on (OIDC authorization code + PKCE, a public client: no secret in the page). The token only says
+// who you are; approving still needs your passkey.
+const SS = { get: (k) => { try { return sessionStorage.getItem(k); } catch (_) { return null; } },
+             set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (_) { /* fine */ } },
+             del: (k) => { try { sessionStorage.removeItem(k); } catch (_) { /* fine */ } } };
+async function ssoConfig() {
+  const c = await fetch("/web/sso.json").then((r) => r.json()).catch(() => ({}));
+  if (!c.issuer || !c.client_id) return null;
+  const d = await fetch(c.issuer + "/.well-known/openid-configuration").then((r) => r.json());
+  if (d.issuer !== c.issuer) throw new Error("identity provider answered for a different issuer");
+  return { ...c, auth: d.authorization_endpoint, token: d.token_endpoint };
+}
+const here = () => location.origin + location.pathname;
+async function ssoStart(c) {
+  const rnd = (n) => b64u(crypto.getRandomValues(new Uint8Array(n)));
+  const verifier = rnd(32), state = rnd(16);
+  SS.set("mastyf-pkce", JSON.stringify({ verifier, state }));
+  const challenge = b64u(await sha256(enc.encode(verifier)));
+  const q = new URLSearchParams({ response_type: "code", client_id: c.client_id, redirect_uri: here(), scope: c.scope,
+                                  state, code_challenge: challenge, code_challenge_method: "S256" });
+  location.assign(c.auth + "?" + q.toString());
+}
+async function ssoFinish(c) {
+  const q = new URLSearchParams(location.search);
+  if (!q.get("code")) return false;
+  history.replaceState(null, "", here());  // never leave the code in the address bar or history
+  const saved = JSON.parse(SS.get("mastyf-pkce") || "{}");
+  SS.del("mastyf-pkce");
+  if (!saved.state || q.get("state") !== saved.state) throw new Error("sign-in answer does not match this browser's request");
+  const r = await fetch(c.token, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "authorization_code", code: q.get("code"), redirect_uri: here(),
+                                client_id: c.client_id, code_verifier: saved.verifier }) });
+  const t = await r.json().catch(() => ({}));
+  if (!r.ok || !t.access_token) throw new Error("sign-in failed: " + (t.error_description || t.error || r.status));
+  KEY = t.access_token;  // kept for this tab only
+  SS.set("mastyf-key", KEY);
+  return true;
+}
 function setupKey(onLoad) {
   $("apikey").value = KEY;
   $("load").addEventListener("click", async () => {
     KEY = $("apikey").value.trim();
-    try { sessionStorage.setItem("mastyf-key", KEY); } catch (_) { /* fine */ }
+    SS.set("mastyf-key", KEY);
     try { await onLoad(); say($("keymsg"), "Loaded.", true); } catch (e) { say($("keymsg"), e.message, false); }
   });
+  ssoConfig().then(async (c) => {
+    if (!c) return;
+    const btn = el("button", { class: "primary", onclick: () => ssoStart(c).catch((e) => say($("keymsg"), e.message, false)) },
+                   "Sign in with your company account");
+    $("load").parentNode.prepend(btn);
+    if (await ssoFinish(c)) { $("apikey").value = ""; await onLoad(); say($("keymsg"), "Signed in.", true); }
+  }).catch((e) => say($("keymsg"), e.message, false));
 }
 
 // passkey assertion over a server challenge, from one of my registered devices

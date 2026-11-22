@@ -1,0 +1,315 @@
+{
+ "rounds": [
+  {
+   "round": 0,
+   "fault": "pause-engine",
+   "target": "a",
+   "t": 1795364000.420238
+  },
+  {
+   "round": 1,
+   "fault": "kill-engine",
+   "target": "b",
+   "t": 1795364037.0655339
+  },
+  {
+   "round": 2,
+   "fault": "split-active",
+   "target": "c",
+   "t": 1795364071.5281448
+  },
+  {
+   "round": 3,
+   "fault": "split-standby",
+   "target": "a",
+   "t": 1795364106.0978339
+  },
+  {
+   "round": 4,
+   "fault": "split-active",
+   "target": "a",
+   "t": 1795364143.640703
+  },
+  {
+   "round": 5,
+   "fault": "pause-engine",
+   "target": "b",
+   "t": 1795364180.296661
+  },
+  {
+   "round": 6,
+   "fault": "pause-engine",
+   "target": "b",
+   "t": 1795364214.3217402
+  },
+  {
+   "round": 7,
+   "fault": "split-active",
+   "target": "a",
+   "t": 1795364249.6218848
+  },
+  {
+   "round": 8,
+   "fault": "kill-engine",
+   "target": "b",
+   "t": 1795364283.709976
+  },
+  {
+   "round": 9,
+   "fault": "kill-engine",
+   "target": "a",
+   "t": 1795364321.208092
+  },
+  {
+   "round": 10,
+   "fault": "split-standby",
+   "target": "b",
+   "t": 1795364357.471362
+  },
+  {
+   "round": 11,
+   "fault": "split-active",
+   "target": "b",
+   "t": 1795364393.396367
+  },
+  {
+   "round": 12,
+   "fault": "kill-engine",
+   "target": "a",
+   "t": 1795364431.216934
+  },
+  {
+   "round": 13,
+   "fault": "split-active",
+   "target": "b",
+   "t": 1795364467.7720408
+  },
+  {
+   "round": 14,
+   "fault": "split-active",
+   "target": "a",
+   "t": 1795364503.5868611
+  },
+  {
+   "round": 15,
+   "fault": "kill-engine",
+   "target": "b",
+   "t": 1795364540.3606458
+  },
+  {
+   "round": 16,
+   "fault": "kill-engine",
+   "target": "a",
+   "t": 1795364574.61873
+  },
+  {
+   "round": 17,
+   "fault": "kill-engine",
+   "target": "b",
+   "t": 1795364610.827153
+  },
+  {
+   "round": 18,
+   "fault": "pause-engine",
+   "target": "a",
+   "t": 1795364648.415188
+  },
+  {
+   "round": 19,
+   "fault": "pause-engine",
+   "target": "b",
+   "t": 1795364685.228349
+  },
+  {
+   "round": 20,
+   "fault": "split-standby",
+   "target": "b",
+   "t": 1795364720.161222
+  },
+  {
+   "round": 21,
+   "fault": "split-standby",
+   "target": "b",
+   "t": 1795364757.0279
+  },
+  {
+   "round": 22,
+   "fault": "pause-engine",
+   "target": "b",
+   "t": 1795364792.740761
+  },
+  {
+   "round": 23,
+   "fault": "split-active",
+   "target": "a",
+   "t": 1795364829.2062788
+  },
+  {
+   "round": 24,
+   "fault": "pause-engine",
+   "target": "b",
+   "t": 1795364864.210868
+  },
+  {
+   "round": 25,
+   "fault": "split-active",
+   "target": "a",
+   "t": 1795364900.811378
+  },
+  {
+   "round": 26,
+   "fault": "split-standby",
+   "target": "b",
+   "t": 1795364936.3521001
+  },
+  {
+   "round": 27,
+   "fault": "split-active",
+   "target": "b",
+   "t": 1795364974.392294
+  },
+  {
+   "round": 28,
+   "fault": "pause-engine",
+   "target": "a",
+   "t": 1795365010.703816
+  },
+  {
+   "round": 29,
+   "fault": "split-standby",
+   "target": "b",
+   "t": 1795365045.808165
+  }
+ ],
+ "releases_ok": 5000,
+ "releases_refused": 20614,
+ "freeze_windows": [
+  [
+   1795364037.0376608,
+   1795364105.979423
+  ],
+  [
+   1795364180.290828,
+   1795364249.518081
+  ],
+  [
+   1795364321.196249,
+   1795364393.281472
+  ],
+  [
+   1795364467.766399,
+   1795364540.2519522
+  ],
+  [
+   1795364610.808249,
+   1795364685.141091
+  ],
+  [
+   1795364757.021439,
+   1795364829.0854511
+  ],
+  [
+   1795364900.802332,
+   1795364974.2600613
+  ],
+  [
+   1795365045.801125,
+   null
+  ]
+ ],
+ "freezes_refused_or_failed": 0,
+ "violations": {
+  "frozen_stays_frozen": [],
+  "stale_epoch_released_after_newer": {},
+  "lost_freezes": []
+ },
+ "refusal_reasons": {
+  "budget": 20513,
+  "grant rejected": 101
+ },
+ "final": {
+  "a": {
+   "ok": true,
+   "model": false,
+   "policy": "2026-11-19.1",
+   "role": "standby",
+   "epoch": 23,
+   "seq": 52170,
+   "shard": ""
+  },
+  "b": {
+   "ok": true,
+   "model": false,
+   "policy": "2026-11-19.1",
+   "role": "active",
+   "epoch": 23,
+   "seq": 52173,
+   "shard": ""
+  },
+  "c": {
+   "ok": true,
+   "model": false,
+   "policy": "2026-11-19.1",
+   "role": "standby",
+   "epoch": 23,
+   "seq": 52173,
+   "shard": ""
+  }
+ },
+ "epochs_seen": [
+  1,
+  2,
+  4,
+  5,
+  6,
+  7
+ ],
+ "availability_through_gateway": 0.9785,
+ "longest_outage_s": 3,
+ "restarts": 51,
+ "engines": 3,
+ "gap_s": 30.0,
+ "hold_ms": 3000,
+ "outage_after_fault_s": {
+  "kill-engine": [
+   2,
+   2,
+   2,
+   3,
+   3,
+   4,
+   4
+  ],
+  "pause-engine": [
+   0,
+   0,
+   0,
+   0,
+   1,
+   1,
+   1,
+   2
+  ],
+  "split-active": [
+   1,
+   1,
+   1,
+   2,
+   2,
+   2,
+   2,
+   3,
+   4
+  ],
+  "split-standby": [
+   0,
+   0,
+   0,
+   1,
+   1,
+   1
+  ]
+ },
+ "decisions_ok": 35209,
+ "decisions_tried": 36644
+}

@@ -60,6 +60,27 @@ PAGE_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-sr
             "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 
 
+def sso_config() -> dict:
+    """Single sign-on for the approve / enroll pages (OIDC authorization code with PKCE, a public client):
+    AUTHORITY_SSO_ISSUER, AUTHORITY_SSO_CLIENT_ID, AUTHORITY_SSO_SCOPE. The gateway checks the resulting
+    tokens (--oidc-issuer ...); approving still needs the person's passkey."""
+    iss = os.environ.get("AUTHORITY_SSO_ISSUER", "").rstrip("/")
+    cid = os.environ.get("AUTHORITY_SSO_CLIENT_ID", "")
+    if not (iss.startswith("https://") or iss.startswith("http://127.0.0.1") or iss.startswith("http://localhost")) \
+            or not cid:
+        return {}
+    return {"issuer": iss, "client_id": cid, "scope": os.environ.get("AUTHORITY_SSO_SCOPE", "openid")}
+
+
+def page_csp() -> str:
+    iss = sso_config().get("issuer")
+    if not iss:
+        return PAGE_CSP
+    from urllib.parse import urlsplit
+    u = urlsplit(iss)
+    return PAGE_CSP.replace("connect-src 'self'", f"connect-src 'self' {u.scheme}://{u.netloc}")
+
+
 def load_callers(path: str) -> dict[str, str]:
     """JSON {"<sha256 hex of bearer key>": "<identity or admin>"}; keys themselves are never stored."""
     data = json.loads(Path(path).read_text())
@@ -91,8 +112,12 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
                         auth.audit.flush()
                         write_floor(auth.floor_signer, auth.issuer.epoch, seq, hash_at(auth, seq) or "")
                     except Fenced as e:
-                        auth.role = "fenced"
-                        auth._alert("engine_superseded", detail=str(e))
+                        cb = getattr(auth, "on_fenced", None)
+                        if cb is not None:
+                            cb(f"key service refused a confirmation: {e}")
+                        else:
+                            auth.role = "fenced"
+                            auth._alert("engine_superseded", detail=str(e))
                         code, obj = 503, {"verdict": DENY, "error": "this engine was replaced; retry", "reasons": [str(e)]}
                     except (OSError, ValueError, Exception) as e:  # noqa: BLE001
                         code, obj = 503, {"verdict": DENY, "error": f"not confirmed: key service unreachable ({e})"}
@@ -140,7 +165,7 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             self.send_response(200)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Content-Security-Policy", PAGE_CSP)
+            self.send_header("Content-Security-Policy", page_csp())
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Cache-Control", "no-store")
@@ -235,8 +260,11 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
         def do_GET(self):
             if self.path.startswith("/scim/v2"):
                 return self._scim("GET")
-            if self.path in STATIC:
-                return self._static(*STATIC[self.path])
+            page = self.path.split("?", 1)[0]  # the sign-in redirect comes back with ?code=...&state=...
+            if page in STATIC:
+                return self._static(*STATIC[page])
+            if page == "/web/sso.json":
+                return self._send(200, sso_config())
             if self.path == "/healthz":
                 return self._send(200, {"ok": True, "model": auth.model is not None, "policy": auth.policy.version,
                                         "role": auth.role, "epoch": auth.issuer.epoch, "seq": auth.audit.position[0],

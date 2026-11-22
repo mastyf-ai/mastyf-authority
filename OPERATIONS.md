@@ -107,18 +107,47 @@ attack logs and a simulated company's work across 2,475 identities), using our i
 
 | | Measured |
 |---|---|
-| Decisions per second, one active engine | about 1,300–2,900 (one CPU core: the engine is single-process Python); a single very busy identity no longer slows the others (its 24 h window is kept as per-minute buckets) |
-| Decision latency | p50 8–14 ms, p99 31–44 ms |
+| Decisions per second, one active engine | about 2,400 through the TLS gateway, 4,800 direct over HTTP, 8,000 in-process (one CPU core; the model's tree walks run in Rust, `rust/native`). The rest of a decision is two Ed25519 signatures (already native code), JSON encoding and feature updates, so a full Rust engine would gain about 2–3x per core: shards are the way to scale |
+| Decision latency | p50 4.5–10.5 ms, p99 19–26 ms through the gateway (48 concurrent clients) |
 | Key release latency | p50 0.1 ms, p99 8 ms |
 | Audit log | about 740 bytes per decision (roughly 60 GB/day at 1,000 decisions/s: see retention) |
 | Snapshot | about 57 MB for 2,475 identities with full history; written in well under a second |
 | Restart | about 6 s from snapshot + tail on an idle machine |
 | Engine failover | 2.3–2.8 s on one host, 4–10 s on Kubernetes, from killing the active engine to decisions continuing |
 | Key-service failover | about 5 s on Kubernetes (3-node cluster, primary killed); a node that comes back within its lease resumes at once |
-| Shards | 1,310 decisions/s with one engine pair, 2,254 with two (one laptop, clients on the same machine); add pairs to go further |
+| Shards | 2,407 decisions/s with one engine pair, 3,934 with two, 4,705 with four (one 10-core laptop running clients, gateway and engines, so four shards are limited by the machine; `tools/shard_bench.py`) |
 
-Give each engine two dedicated cores and fast local SSD storage. For more than ~1,500 decisions per second
+Give each engine two dedicated cores and fast local SSD storage. For more than ~2,000 decisions per second
 per engine pair, add shards (see "Scaling out: shards").
+
+## Availability, measured
+
+`tools/partition_chaos.py` runs three engines, a three-node key service and the gateway, sends decisions, freezes
+and key releases continuously, and injects faults: killing or pausing an engine, cutting the active engine or a
+standby off the network. It checks that no freeze is lost or undone and that no replaced engine's grant is
+honoured.
+
+| Fault rate | Availability (decisions answered) | Longest outage | Safety violations |
+|---|---|---|---|
+| one fault every 5 minutes, 1 hour (`artifacts/partition_chaos_realistic.json`) | 99.65% | 3 s | none |
+| one fault every ~30 s, 30 faults (`artifacts/partition_chaos_3eng.json`) | 97.9% | 3 s | none |
+
+A fault costs about 1.1 s of refusals on average (at most 4 s). At one fault an hour that is about 99.97%; at one a
+day, 99.999%. These are extrapolations from measured outages, not a measured long-term figure: run two gateway
+replicas, three engines and three key-service nodes on separate machines to get them.
+
+## Container images
+
+The gateway and key service are static binaries (rustls, no OpenSSL) on `distroless/static` (no shell, no C
+library); the engine image installs Debian security updates at build time. A release fails if Trivy finds a fixable
+HIGH or CRITICAL vulnerability in any image. Remaining unfixed Debian findings in the engine image (util-linux,
+acl: mount and namespace tools) are not reachable: the container runs as non-root with a read-only root filesystem
+and every capability dropped.
+
+## Evidence for auditors
+
+`authority evidence` writes a signed bundle for a period (approvals, freezes, failovers, access review, config
+fingerprints, audit-log verification); see `SOC2-CONTROLS.md`.
 
 ## How it fails
 
@@ -151,7 +180,18 @@ mastyf-gateway ... --oidc-issuer https://idp.example.com/realms/acme --oidc-audi
 Refresh `jwks.json` from the provider's JWKS URL (it is re-read when it changes). `human:{}` maps `alice` to
 `human:alice`; a format can never produce `admin` or `replica` - only an explicit `--oidc-map` entry can. Add the
 gateway key's SHA-256 to the callers file as `"gateway"`: engines accept an identity from the gateway only with it.
-Tested end to end against Keycloak (`tools/sso_e2e.py`). The approve and enroll pages still use keys and passkeys.
+Tested end to end against Keycloak (`tools/sso_e2e.py`).
+
+**The approve and enroll pages** sign people in the same way (OIDC authorization code with PKCE; a public client,
+no secret in the page). Register a public client with redirect URIs `https://<gateway>/approve` and
+`https://<gateway>/enroll`, then set on the engines:
+
+```
+AUTHORITY_SSO_ISSUER=https://idp.example.com/realms/acme   AUTHORITY_SSO_CLIENT_ID=authority-web
+```
+
+and add that client id as an `--oidc-audience` on the gateway. The pages show "Sign in with your company account";
+the token stays in the tab (session storage) and only says who the person is - approving still needs their passkey.
 
 ## Sending the audit log to your SIEM
 
@@ -161,6 +201,16 @@ Management). Targets: `opensearch+https://host:9200/<index>` (also Elasticsearch
 token in `AUTHORITY_SIEM_TOKEN`), `webhook+https://...`, `file:/path`, `stdout`. Every record is verified (hash chain
 and signature) before it is sent; it resumes from `<dir>/siem.pos`; event ids are log sequence numbers, so a resend
 never duplicates. Measured into OpenSearch: 4,300 events/s. Run it next to the active engine (it reads the log).
+
+## More standbys, and requests held during a failover
+
+Run three engines (`engine.replicas: 3`, needs three nodes for the anti-affinity) for two standbys: a failover then
+still leaves a standby, and while one standby rebuilds after a failover another is ready. The gateway tries every
+standby in turn; the key service refuses any that lacks the newest confirmed records. The protocol is model-checked
+with three engines too (`formal/FailoverFixed3.cfg`, 20 M states).
+
+During a failover the gateway holds requests (default 3 s, `--hold-ms`) and sends them to the new active engine
+instead of refusing them - only requests that certainly were not processed (no connection, or "not active").
 
 ## Scaling out: shards
 

@@ -2,10 +2,14 @@
 FROM rust:1.90-slim-bookworm AS build
 WORKDIR /src
 COPY rust/keyservice/ .
-RUN cargo build --release --locked
+# static (musl) binary: TLS is rustls, so the runtime image needs no OpenSSL or C library at all
+RUN apt-get update && apt-get install -y --no-install-recommends musl-tools && rm -rf /var/lib/apt/lists/* \
+    && T="$(uname -m)-unknown-linux-musl" && rustup target add "$T" \
+    && cargo build --release --locked --target "$T" && mkdir -p out && cp target/"$T"/release/mastyf-* out/ \
+    && rm -f out/*.d
 
-FROM gcr.io/distroless/cc-debian12:nonroot
-COPY --from=build /src/target/release/mastyf-keyservice /usr/local/bin/mastyf-keyservice
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /src/out/mastyf-keyservice /usr/local/bin/mastyf-keyservice
 USER nonroot
 # State (journal) must be a persistent, private volume. The KEK comes from --kek-command (KMS), not the image.
 VOLUME ["/state"]

@@ -103,6 +103,9 @@ def main() -> None:
     ap.add_argument("--rounds", type=int, default=30)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--stack", action="store_true", help="let faults pile up instead of healing after each")
+    ap.add_argument("--engines", type=int, default=2, choices=(2, 3), help="engines (3 = two standbys)")
+    ap.add_argument("--gap", type=float, default=10, help="seconds of calm after each healed fault")
+    ap.add_argument("--hold-ms", type=int, default=3000, help="gateway: hold requests during a failover")
     ap.add_argument("--out", default=str(ROOT / "artifacts/partition_chaos.json"))
     a = ap.parse_args()
     rng = random.Random(a.seed)
@@ -110,7 +113,9 @@ def main() -> None:
     tmp = Path(tempfile.mkdtemp(prefix="pchaos", dir=str(Path.home() / ".cache")))
     c = Cluster(tmp)
     # engines listen on pa/pb; the gateway and the peer links go through cuttable proxies
-    real = {"a": c.pa, "b": c.pb}
+    names = ["a", "b", "c"][: a.engines]
+    real = {"a": c.pa, "b": c.pb, "c": c.pc}
+    real = {n: real[n] for n in names}
     c.start_ks()
     prox = {n: Proxy(p) for n, p in real.items()}
     history: list[dict] = []
@@ -125,7 +130,7 @@ def main() -> None:
 
     def start(name, role="auto"):
         # as on Kubernetes: --role auto, engine 0 / engine 1, peer and follow through the gateway
-        os.environ["AUTHORITY_ORDINAL"] = "0" if name == "a" else "1"
+        os.environ["AUTHORITY_ORDINAL"] = str(names.index(name))
         os.environ["AUTHORITY_FENCE_WAIT"] = "20"
         c.start_engine(name, role, ["--peer", f"https://localhost:{c.pg}", "--follow", f"https://localhost:{c.pg}"])
 
@@ -134,17 +139,18 @@ def main() -> None:
     start("a")
     c.procs["gw"] = subprocess.Popen(
         [str(BIN / "mastyf-gateway"), "--listen", f"127.0.0.1:{c.pg}", "--tls-cert", c.cert, "--tls-key", c.tkey,
-         "--callers", str(c.tmp / "callers.json"), "--upstream", f"127.0.0.1:{prox['a'].port}",
-         "--upstream", f"127.0.0.1:{prox['b'].port}", "--promote-key-file", str(c.tmp / "promote.key"),
+         "--callers", str(c.tmp / "callers.json"), *sum((["--upstream", f"127.0.0.1:{prox[n].port}"] for n in names), []),
+         "--promote-key-file", str(c.tmp / "promote.key"), "--hold-ms", str(a.hold_ms),
          "--failover-after", "2", "--rate", "100000", "--burst", "100000"], stderr=open(c.tmp / "gw.log", "ab"))
     c._wait(lambda: socket.create_connection(("127.0.0.1", c.pg), timeout=0.2).close() or True)
-    start("b")
+    for n in names[1:]:
+        start(n)
     stop = threading.Event()
     down_since: dict[str, float] = {}
 
     def supervisor():  # restarts an exited engine after 3 s, like a Kubernetes StatefulSet
         while not stop.is_set():
-            for n in ("a", "b"):
+            for n in names:
                 pr = c.procs.get(n)
                 if pr is not None and pr.poll() is not None:
                     down_since.setdefault(n, time.time())
@@ -210,13 +216,13 @@ def main() -> None:
                 log(kind="freeze_error", identity=who)
         elif r % 4 == 3 and windows and windows[-1][1] is None:
             windows[-1][1] = time.time() - 0.001  # anything issued after this may be legitimately allowed again
-            for port in (None, real["a"], real["b"]):
+            for port in (None, *real.values()):
                 try:
                     c.call("POST", "/v1/unfreeze", KADMIN, {"identity": who, "operator": "chaos"}, port=port)
                 except (OSError, ValueError):
                     pass
         # the victim (stolen session) keeps trying, directly at both engines and via the gateway
-        for port in (None, real["a"], real["b"]):
+        for port in (None, *real.values()):
             try:
                 act = {"identity": "human:alice", "action_type": "data.read", "resource": "db://crm/customers/1", "count": 1}
                 st, d = c.call("POST", "/v1/decide", KA, {"action": act}, port=port)
@@ -224,14 +230,14 @@ def main() -> None:
                 pass
         f = rng.choice(faults)
         health = {}
-        for n in ("a", "b"):
+        for n in names:
             try:
                 health[n] = c.health(real[n])
             except (OSError, ValueError):
                 health[n] = None
         active = [n for n, h in health.items() if h and h.get("role") == "active"]
-        target = active[0] if active else rng.choice(["a", "b"])
-        other = "b" if target == "a" else "a"
+        target = active[0] if active else rng.choice(names)
+        other = rng.choice([n for n in names if n != target])
         if f == "split-active":
             prox[target].split(True)
         elif f == "split-standby":
@@ -253,7 +259,7 @@ def main() -> None:
             # (exited engines are restarted by the supervisor)
         log(kind="fault", fault=f, target=target, roles={n: (h or {}).get("role") for n, h in health.items()},
             epochs={n: (h or {}).get("epoch") for n, h in health.items()})
-        rounds.append({"round": r, "fault": f, "target": target})
+        rounds.append({"round": r, "fault": f, "target": target, "t": time.time()})
         time.sleep(rng.uniform(4, 8))
         if not a.stack:  # heal and let it recover
             for pp in prox.values():
@@ -262,7 +268,7 @@ def main() -> None:
                 c.procs[n].send_signal(signal.SIGCONT)
                 paused.discard(n)
             log(kind="fault", fault="heal", target="all", roles={}, epochs={})
-            time.sleep(10)
+            time.sleep(a.gap)
     # heal and settle
     for p in prox.values():
         p.split(False)
@@ -271,7 +277,7 @@ def main() -> None:
     time.sleep(20)
     stop.set()
     final = {}
-    for n in ("a", "b"):
+    for n in names:
         try:
             final[n] = c.health(real[n])
         except (OSError, ValueError):
@@ -315,6 +321,12 @@ def main() -> None:
         "longest_outage_s": max((len(list(g)) for k, g in __import__("itertools").groupby(
             [bool(gw_ok.get(t)) for t in range(min(gw_try or [0]), max(gw_try or [0]) + 1)]) if not k), default=0),
         "restarts": sum(1 for e in history if e["kind"] == "restart"),
+        "engines": a.engines, "gap_s": a.gap, "hold_ms": a.hold_ms,
+        # per fault: seconds without a single successful decision through the gateway in the 60 s after it
+        "outage_after_fault_s": {f: sorted(sum(1 for t in range(int(r0["t"]), int(r0["t"]) + 60)
+                                               if t in gw_try and not gw_ok.get(t)) for r0 in rounds if r0["fault"] == f)
+                                 for f in sorted({r0["fault"] for r0 in rounds})},
+        "decisions_ok": sum(gw_ok.values()), "decisions_tried": sum(gw_try.values()),
     }
     print(json.dumps({k: v for k, v in out.items() if k != "rounds"}, indent=1, default=str))
     Path(a.out).write_text(json.dumps(out, indent=1, default=str))

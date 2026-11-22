@@ -51,6 +51,11 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/mastyf-authority-${{ matrix.name }}:${{ github.ref_name }}
             ghcr.io/${{ github.repository_owner }}/mastyf-authority-${{ matrix.name }}:latest
+      - name: Scan the image (no fixable HIGH or CRITICAL vulnerability; an unsigned image fails the release)
+        env: { DIGEST: "${{ steps.build.outputs.digest }}" }
+        run: |
+          docker run --rm aquasec/trivy:0.58.1 image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+            --exit-code 1 "ghcr.io/${{ github.repository_owner }}/mastyf-authority-${{ matrix.name }}@${DIGEST}"
       - uses: sigstore/cosign-installer@v3
       - name: Sign the image (keyless, Sigstore; verify with cosign verify --certificate-identity-regexp)
         env: { DIGEST: "${{ steps.build.outputs.digest }}" }

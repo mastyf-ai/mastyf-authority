@@ -1,10 +1,23 @@
 # Python authority (decisions, approvals, model). Build: docker build -f deploy/Dockerfile.authority -t mastyf-authority .
+# The model scorer's tree walks are built in Rust (rust/native, bit-identical to the Python reference; the engine
+# falls back to Python if the module is missing).
+FROM rust:1.90-slim-bookworm AS native
+RUN apt-get update && apt-get install -y --no-install-recommends python3-dev && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY rust/native/ .
+RUN cargo build --release --locked
+
 FROM python:3.12-slim
-RUN useradd --system --uid 10001 authority
+# security updates released after the base image (the release scan fails on any fixable HIGH/CRITICAL)
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 authority
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src/ src/
-RUN pip install --no-cache-dir . && rm -rf /root/.cache
+RUN rm -f src/authority/_native*.so && pip install --no-cache-dir . && rm -rf /root/.cache
+COPY --from=native /src/target/release/lib_native.so /tmp/_native.abi3.so
+RUN install -m 644 /tmp/_native.abi3.so "$(python -c 'import authority, os; print(os.path.dirname(authority.__file__))')/_native.abi3.so" \
+    && rm /tmp/_native.abi3.so && python -c "from authority._native import Scorer"
 USER authority
 # /state holds the signing key and the signed audit log (state is rebuilt from it at start).
 VOLUME ["/state"]

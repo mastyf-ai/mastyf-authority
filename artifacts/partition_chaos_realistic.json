@@ -1,0 +1,164 @@
+{
+ "rounds": [
+  {
+   "round": 0,
+   "fault": "split-standby",
+   "target": "a",
+   "t": 1795365193.092654
+  },
+  {
+   "round": 1,
+   "fault": "split-active",
+   "target": "a",
+   "t": 1795365500.363019
+  },
+  {
+   "round": 2,
+   "fault": "kill-engine",
+   "target": "b",
+   "t": 1795365807.203201
+  },
+  {
+   "round": 3,
+   "fault": "split-active",
+   "target": "a",
+   "t": 1795366114.610475
+  },
+  {
+   "round": 4,
+   "fault": "split-active",
+   "target": "b",
+   "t": 1795366420.887274
+  },
+  {
+   "round": 5,
+   "fault": "pause-engine",
+   "target": "a",
+   "t": 1795366725.827625
+  },
+  {
+   "round": 6,
+   "fault": "kill-engine",
+   "target": "b",
+   "t": 1795367032.975394
+  },
+  {
+   "round": 7,
+   "fault": "split-active",
+   "target": "a",
+   "t": 1795367339.5019991
+  },
+  {
+   "round": 8,
+   "fault": "split-standby",
+   "target": "b",
+   "t": 1795367644.975734
+  },
+  {
+   "round": 9,
+   "fault": "kill-engine",
+   "target": "b",
+   "t": 1795367950.5149498
+  },
+  {
+   "round": 10,
+   "fault": "split-standby",
+   "target": "a",
+   "t": 1795368255.383841
+  },
+  {
+   "round": 11,
+   "fault": "kill-engine",
+   "target": "a",
+   "t": 1795368563.2439969
+  }
+ ],
+ "releases_ok": 5000,
+ "releases_refused": 87908,
+ "freeze_windows": [
+  [
+   1795365500.3481972,
+   1795366114.4966471
+  ],
+  [
+   1795366725.822392,
+   1795367339.378076
+  ],
+  [
+   1795367950.500062,
+   1795368563.1632912
+  ]
+ ],
+ "freezes_refused_or_failed": 0,
+ "violations": {
+  "frozen_stays_frozen": [],
+  "stale_epoch_released_after_newer": {},
+  "lost_freezes": []
+ },
+ "refusal_reasons": {
+  "budget": 87890,
+  "grant rejected": 18
+ },
+ "final": {
+  "a": {
+   "ok": true,
+   "model": false,
+   "policy": "2026-11-19.1",
+   "role": "standby",
+   "epoch": 10,
+   "seq": 187481,
+   "shard": ""
+  },
+  "b": {
+   "ok": true,
+   "model": false,
+   "policy": "2026-11-19.1",
+   "role": "active",
+   "epoch": 10,
+   "seq": 187482,
+   "shard": ""
+  },
+  "c": {
+   "ok": true,
+   "model": false,
+   "policy": "2026-11-19.1",
+   "role": "standby",
+   "epoch": 10,
+   "seq": 187481,
+   "shard": ""
+  }
+ },
+ "epochs_seen": [
+  1
+ ],
+ "availability_through_gateway": 0.9965,
+ "longest_outage_s": 3,
+ "restarts": 19,
+ "engines": 3,
+ "gap_s": 300.0,
+ "hold_ms": 3000,
+ "outage_after_fault_s": {
+  "kill-engine": [
+   1,
+   1,
+   2,
+   2
+  ],
+  "pause-engine": [
+   0
+  ],
+  "split-active": [
+   1,
+   2,
+   2,
+   2
+  ],
+  "split-standby": [
+   0,
+   0,
+   0
+  ]
+ },
+ "decisions_ok": 123667,
+ "decisions_tried": 124384
+}

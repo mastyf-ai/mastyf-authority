@@ -1,9 +1,10 @@
 {
  "identity_provider": "quay.io/keycloak/keycloak:26.0.7",
  "jwks_keys": [
-  "RSA-OAEP",
-  "RS256"
+  "RS256",
+  "RSA-OAEP"
  ],
+ "redirect": "https://localhost:51560/approve?state=st-123&session_state=d6d82c32-3143-488f-97a8-1e84cd8ab7e7&iss=http%3A%2F%2F127.0.0.1%3A51497%2Frealms%2Facme&code=e5b46b42-59fa-45d0-b37f-9206e8c4a751.d6d82c32-31",
  "checks": {
   "alice token decides as human:alice": true,
   "alice token cannot act as bob": true,
@@ -12,6 +13,13 @@
   "user named admin is not the admin identity": true,
   "explicitly mapped secops is admin": true,
   "engine ignores identity header from a non-gateway caller": true,
+  "page served after the sign-in redirect (query ignored)": true,
+  "page CSP lets the page reach the identity provider": true,
+  "identity provider redirects back with a code and our state": true,
+  "code exchanged with the PKCE verifier": true,
+  "a code cannot be redeemed twice or without the verifier": true,
+  "signed-in approver (dana) loads the approvals list": true,
+  "signed-in non-approver (alice) does not": true,
   "expired token refused": true
  },
  "all_passed": true
