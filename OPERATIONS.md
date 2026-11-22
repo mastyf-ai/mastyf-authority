@@ -115,7 +115,7 @@ attack logs and a simulated company's work across 2,475 identities), using our i
 | Restart | about 6 s from snapshot + tail on an idle machine |
 | Engine failover | 2.3–2.8 s on one host, 4–10 s on Kubernetes, from killing the active engine to decisions continuing |
 | Key-service failover | about 5 s on Kubernetes (3-node cluster, primary killed); a node that comes back within its lease resumes at once |
-| Shards | 2,407 decisions/s with one engine pair, 3,934 with two, 4,705 with four (one 10-core laptop running clients, gateway and engines, so four shards are limited by the machine; `tools/shard_bench.py`) |
+| Shards | 2,407 decisions/s with one engine pair, 3,934 with two, 4,705 with four (one 10-core laptop running clients, gateway and engines, so four shards are limited by the machine; `tools/shard_bench.py`); across separate machines (Modal, one 2-CPU container per engine, six load machines each with its own gateway): 1,475 / 2,992 / 5,820 / 11,774 decisions/s with 1 / 2 / 4 / 8 engines, zero errors (7.98x with 8) |
 
 Give each engine two dedicated cores and fast local SSD storage. For more than ~2,000 decisions per second
 per engine pair, add shards (see "Scaling out: shards").

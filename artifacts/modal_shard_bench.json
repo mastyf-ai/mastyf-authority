@@ -1,19 +1,55 @@
 {
- "where": "Modal, one container per engine / gateway / client group, connected through Modal TCP tunnels",
- "engine_cpu": 2,
- "gateway_cpu": 8,
- "client_cpu": 8,
- "client_procs_per_box": 24,
+ "where": "Modal: one container per engine (2 CPU) and per load box (8 CPU: gateway + async clients); engines reached through Modal TCP tunnels (latency is the relay's)",
+ "seconds": 40.0,
+ "boxes": 6,
+ "inflight_per_box": 600,
  "runs": [
   {
    "shards": 1,
-   "gateways": 1,
-   "client_boxes": 2,
-   "decisions_per_s": 107,
-   "p50_ms": 315.5,
-   "p99_ms": 1845.3,
-   "errors": 1,
-   "setup_s": 45
+   "decisions_per_s": 1475,
+   "errors": 0,
+   "relay_p50_ms": 3656.7,
+   "tunnel_connect_ms": [
+    2.3
+   ]
+  },
+  {
+   "shards": 2,
+   "decisions_per_s": 2992,
+   "errors": 0,
+   "relay_p50_ms": 1691.7,
+   "tunnel_connect_ms": [
+    2.3,
+    201.1
+   ]
+  },
+  {
+   "shards": 4,
+   "decisions_per_s": 5820,
+   "errors": 0,
+   "relay_p50_ms": 914.6,
+   "tunnel_connect_ms": [
+    0.9,
+    148.9,
+    67.1,
+    150.5
+   ]
+  },
+  {
+   "shards": 8,
+   "decisions_per_s": 11774,
+   "errors": 0,
+   "relay_p50_ms": 461.8,
+   "tunnel_connect_ms": [
+    68.8,
+    150.0,
+    149.3,
+    1.1,
+    1.1,
+    67.9,
+    149.5,
+    67.5
+   ]
   }
  ]
 }
