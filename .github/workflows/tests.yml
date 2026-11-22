@@ -12,8 +12,9 @@ jobs:
         with: { persist-credentials: false }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - uses: dtolnay/rust-toolchain@stable
-        with: { components: clippy }
+      # pinned (same as local builds): rustc 1.100 fails to infer sha2/digest 0.10 types
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: "1.95.0", components: clippy }
       - name: Rust lint (warnings are errors) and unit + randomized fuzz tests
         run: |
           cd rust/keyservice

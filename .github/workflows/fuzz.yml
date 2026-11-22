@@ -18,7 +18,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: dtolnay/rust-toolchain@nightly
+      # pinned: newer compilers (1.100) fail to infer sha2/digest 0.10 types; move together with Cargo.lock
+      - uses: dtolnay/rust-toolchain@master
+        with: { toolchain: nightly-2026-04-15 }
       - run: cargo install cargo-fuzz --locked
       - name: Fuzz ${{ matrix.target }}
         working-directory: rust/keyservice
