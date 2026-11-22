@@ -25,6 +25,7 @@ class GrantIssuer:
         self.signer = signer
         self.ttl = ttl_seconds
         self.now = now
+        self.epoch = 0  # raised when a standby engine is promoted (failover); see failover.py
 
     def issue(self, action: Action, decision_id: str, constraints: dict | None = None) -> str:
         iat = self.now()
@@ -39,6 +40,8 @@ class GrantIssuer:
             "iat": iat,
             "exp": iat + self.ttl,
         }
+        if self.epoch:
+            payload["ep"] = self.epoch
         body = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return b64e(body) + "." + b64e(self.signer.sign(body))
 
@@ -51,6 +54,7 @@ class GrantVerifier:
         self.now = now
         self._used: dict[str, float] = {}
         self._lock = threading.Lock()
+        self.min_epoch = 0  # grants from a superseded engine (lower epoch) are refused, as in the Rust service
 
     def verify(self, token: str, action: Action) -> dict:
         try:
@@ -66,6 +70,8 @@ class GrantVerifier:
             raise GrantError("grant expired")
         if payload["fp"] != action.fingerprint():
             raise GrantError("grant does not match this action")
+        if payload.get("ep", 0) < self.min_epoch:
+            raise GrantError(f"grant from a superseded authority engine (epoch {payload.get('ep', 0)} < {self.min_epoch})")
         with self._lock:
             for gid, exp in list(self._used.items()):
                 if exp < t:

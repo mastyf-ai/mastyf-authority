@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 
@@ -52,6 +53,51 @@ def _load_model(name: str):
         import importlib
         importlib.import_module("authority.licence").require(stamp, "The production risk model")
     return RiskModel.load(path)
+
+def _record_ok(rec: dict, public_key) -> bool:
+    import hashlib
+
+    from .audit import _canon
+    from .crypto import b64d, verify
+    body = {k: rec[k] for k in ("seq", "ts", "prev", "event")}
+    return hashlib.sha256(_canon(body)).hexdigest() == rec["hash"] and verify(public_key, b64d(rec["sig"]),
+                                                                                rec["hash"].encode())
+
+
+def _snapshot_now(auth, signer, path) -> dict | None:
+    """Snapshot the engine's state together with the audit position it reflects, then record it in the log."""
+    from . import snapshot as snap
+    with auth._lock:
+        auth.audit.flush()  # the records the snapshot claims to cover are on disk first
+        seq, head = auth.audit.position
+        if seq == 0:
+            return None
+        info = snap.write(path, auth, signer, seq, head, auth.now())
+        auth.last_snapshot_ts = time.time()
+    if auth.role == "active":  # a standby's log must stay an exact copy of the active engine's
+        auth.audit.append({"type": "snapshot", "covers_seq": seq, "sha256": info["sha256"], "bytes": info["bytes"]})
+    return info
+
+
+def _start_snapshots(auth, signer, path) -> None:
+    import os
+    import threading
+    every_s = float(os.environ.get("AUTHORITY_SNAPSHOT_SECONDS", "300"))
+    every_n = int(os.environ.get("AUTHORITY_SNAPSHOT_RECORDS", "250000"))
+
+    def loop():
+        last_t, last_seq = time.time(), auth.audit.position[0]
+        while True:
+            time.sleep(5)
+            seq = auth.audit.position[0]
+            if seq > last_seq + 1 and (seq - last_seq >= every_n or time.time() - last_t >= every_s):
+                try:
+                    _snapshot_now(auth, signer, path)
+                except OSError as e:  # a full disk must not stop decisions; the audit log is still complete
+                    print(f"WARNING: snapshot failed: {e}", flush=True)
+                last_t, last_seq = time.time(), auth.audit.position[0]
+    threading.Thread(target=loop, daemon=True, name="snapshots").start()
+
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="authority")
@@ -131,6 +177,13 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--state", default="state")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8740)
+    s.add_argument("--role", choices=["active", "standby", "auto"], default="active",
+                   help="standby: follow --follow and take over when a gateway promotes it (failover.py); auto: "
+                        "standby if another engine is active, else active only for ordinal 0 (AUTHORITY_ORDINAL "
+                        "or the hostname's -N suffix, as in a Kubernetes StatefulSet)")
+    s.add_argument("--follow", help="the active engine's gateway URL (https://...), for --role standby")
+    s.add_argument("--peer", help="the other engine's gateway URL; an active engine that sees a newer active "
+                                 "peer stops deciding (it was replaced during a failover)")
 
     v = sub.add_parser("audit-verify", help="verify the audit log chain and signatures")
     v.add_argument("--state", default="state")
@@ -216,14 +269,30 @@ def main(argv: list[str] | None = None) -> None:
         keys_path = os.environ.get("AUTHORITY_APPROVER_KEYS", "")
         approver_keys = {k: load_pem_public_key(v.encode())
                          for k, v in (json.loads(Path(keys_path).read_text()) if keys_path else {}).items()}
-        from .audit import verify_log
+        from . import snapshot as snap
+        from .audit import GENESIS, iter_records, record_at, repair_tail, segments, verify_log
         log_path = Path(a.state) / "audit.jsonl"
-        records = []
-        if log_path.exists():
-            ok, msg = verify_log(log_path, signer.public_key)
+        snap_path = Path(a.state) / "snapshot.json"
+        cut = repair_tail(log_path)
+        if cut:
+            print(f"WARNING: removed a half-written final audit record ({cut} bytes) left by a power cut", flush=True)
+        try:
+            body = snap.read(snap_path, signer.public_key)
+        except (ValueError, KeyError) as e:
+            raise SystemExit(f"state snapshot failed verification ({e}): refusing to start. If you know why, move "
+                             f"{snap_path} away and the engine rebuilds from the full audit log.")
+        from_seq, from_hash = 0, GENESIS
+        if body and body["seq"]:
+            anchor = record_at(log_path, body["seq"])
+            if anchor is None or anchor["hash"] != body["head"] or not _record_ok(anchor, signer.public_key):
+                raise SystemExit("state snapshot does not match the audit log: refusing to start")
+            from_seq, from_hash = body["seq"], body["head"]
+        if segments(log_path):
+            t0 = time.time()
+            ok, msg = verify_log(log_path, signer.public_key, from_seq, from_hash)
             if not ok:
                 raise SystemExit(f"audit log failed verification ({msg}): refusing to start with tampered state")
-            records = [json.loads(x) for x in log_path.read_text().splitlines() if x.strip()]
+            print(f"audit log after the snapshot verified: {msg} ({time.time() - t0:.1f} s)", flush=True)
         devices, enroll = None, None
         dev_path = os.environ.get("AUTHORITY_DEVICES", "")  # same file the key service reads (--devices)
         if dev_path:
@@ -238,8 +307,45 @@ def main(argv: list[str] | None = None) -> None:
         auth = Authority(policy, GrantIssuer(signer, policy.grant_ttl_seconds),
                          AuditLog(log_path, signer), model=model, approver_keys=approver_keys, devices=devices)
         auth.policy_source = json.loads(Path(a.policy).read_text())  # teams recompile on directory changes
-        if records:
-            print(f"restored state from {auth.restore(records)} audit records (chain verified)", flush=True)
+        t0 = time.time()
+        if body:
+            snap.load(auth, body["state"])
+        n = auth.restore(iter_records(log_path, after_seq=from_seq))
+        if body or n:
+            print(f"restored state: snapshot at record {from_seq} + {n} later records ({time.time() - t0:.1f} s)",
+                  flush=True)
+        _start_snapshots(auth, signer, snap_path)
+        from .failover import Follower, choose_role, set_aside, watch_peer
+        auth.follower = None
+        replica_key = os.environ.get("AUTHORITY_REPLICA_KEY", "")
+        peer_ca = os.environ.get("AUTHORITY_PEER_CA") or None
+        if a.role == "auto":
+            import socket as _socket
+            ordinal = os.environ.get("AUTHORITY_ORDINAL") or _socket.gethostname().rsplit("-", 1)[-1]
+            a.role = choose_role(a.follow or a.peer, ordinal, peer_ca)
+            print(f"role auto (ordinal {ordinal}): starting {a.role}", flush=True)
+        if a.role == "standby":
+            if not (a.follow and replica_key):
+                raise SystemExit("--role standby needs --follow URL and AUTHORITY_REPLICA_KEY")
+            auth.role = "standby"
+            auth.follower = Follower(auth, a.follow, replica_key, signer.public_key, peer_ca)
+
+            def diverged(why):
+                where = set_aside(a.state, why)
+                print(f"DIVERGED: this engine's log has records the active engine never received ({why}). "
+                      f"Moved them to {where}; restarting to resync.", flush=True)
+                os._exit(3)  # a supervisor (systemd, Kubernetes) restarts it with an empty state
+            auth.follower.on_diverged = diverged
+            auth.follower.start()
+            print(f"standby: following {a.follow} from record {auth.audit.position[0]}", flush=True)
+        if a.peer:
+            def superseded(h):
+                if auth.role == "active":
+                    auth.role = "fenced"
+                    auth._alert("engine_superseded", peer_epoch=h.get("epoch"), own_epoch=auth.issuer.epoch)
+                    print(f"FENCED: peer is active at epoch {h.get('epoch')} > {auth.issuer.epoch}; this engine "
+                          f"no longer decides. Rebuild it as a standby (fresh state directory).", flush=True)
+            watch_peer(auth, a.peer, replica_key, peer_ca, superseded)
         if devices is not None:
             def is_approver(name):
                 r = policy.identities.get(name)
@@ -247,7 +353,18 @@ def main(argv: list[str] | None = None) -> None:
             enroll = Enrollment(devices, approver_keys=approver_keys, audit=auth.audit.append,
                                 alert=lambda who, text: auth._alert("device_change", identity=who, detail=text),
                                 save_path=dev_path, is_approver=is_approver)
-        serve(auth, a.host, a.port, enroll)
+        import signal as _signal
+
+        def _stop(*_):
+            raise KeyboardInterrupt
+        _signal.signal(_signal.SIGTERM, _stop)
+        try:
+            serve(auth, a.host, a.port, enroll)
+        except KeyboardInterrupt:
+            pass
+        finally:
+            _snapshot_now(auth, signer, snap_path)
+            auth.audit.close()
     elif a.cmd == "policy" and a.pcmd == "compile":
         from .teams import expand
         d = json.loads(Path(a.directory).read_text()) if a.directory else None

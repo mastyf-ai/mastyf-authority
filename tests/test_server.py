@@ -88,3 +88,27 @@ def test_pending_queue_visible_to_approvers_only(srv):
                       {"fingerprint": d["fingerprint"], "approver": "human:dana", "reason": "not planned"})
     assert code == 200 and body["removed"]
     assert not call(base, "/v1/pending", "k-dana-0123456789abcdef")[1]["pending"]
+
+
+
+def test_server_ignores_caller_timestamps():
+    """Future- or back-dated requests are stamped with the server's clock before the engine sees them,
+    so they cannot empty the daily windows, burst counters or time-of-day features."""
+    policy = Policy.load(ROOT / "policies/default.json")
+    s = Signer.generate()
+    auth = Authority(policy, GrantIssuer(s, 60), AuditLog(None, s), now=lambda: 1_000_000.0)
+    seen = []
+    real = auth.decide
+    auth.decide = lambda act, approval_id=None: (seen.append(act["ts"]), real(act, approval_id=approval_id))[1]
+    callers = {hashlib.sha256(k.encode()).hexdigest(): who for k, who in KEYS.items()}
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(auth, callers, GrantVerifier(s.public_key)))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{httpd.server_address[1]}"
+    act = {"identity": "human:alice", "action_type": "data.read", "resource": "db://crm/customers/1", "count": 1}
+    try:
+        for ts in (5e9, 0, -1, 1_000_000.0):
+            assert call(base, "/v1/decide", "k-alice-0123456789abcdef", {"action": {**act, "ts": ts}})[0] == 200
+        assert call(base, "/v1/decide", "k-alice-0123456789abcdef", {"action": act})[0] == 200
+    finally:
+        httpd.shutdown()
+    assert seen == [1_000_000.0] * 5

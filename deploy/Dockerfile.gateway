@@ -1,0 +1,11 @@
+# Rust gateway (TLS front door, failover between engines). Build: docker build -f deploy/Dockerfile.gateway -t mastyf-gateway .
+FROM rust:1.90-slim-bookworm AS build
+WORKDIR /src
+COPY rust/keyservice/ .
+RUN cargo build --release --locked --bin mastyf-gateway
+
+FROM gcr.io/distroless/cc-debian12:nonroot
+COPY --from=build /src/target/release/mastyf-gateway /usr/local/bin/mastyf-gateway
+USER nonroot
+EXPOSE 8443
+ENTRYPOINT ["/usr/local/bin/mastyf-gateway"]

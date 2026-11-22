@@ -313,3 +313,24 @@ class CaseRegistry:
         if n:
             with self._lock:
                 self.outside[identity].append((self.now(), n))
+
+
+def approver_signed(keys: dict, devices: "DeviceRegistry | None", s: dict, msg: bytes) -> str | None:
+    """The approver named in `s` approved `msg`, either with a CLI signature ({"approver","sig"}) or a
+    passkey assertion ({"approver","device","proof"}) whose challenge is SHA-256(msg). Same rule as
+    the Rust key service's `approver_signed`. Returns the approver's name, or None."""
+    import hashlib
+
+    name = s.get("approver") if isinstance(s, dict) else None
+    pk = keys.get(name) if name else None
+    if pk is None:
+        return None
+    if s.get("sig") is not None:
+        try:
+            return name if verify(pk, b64d(s["sig"]), msg) else None
+        except Exception:  # noqa: BLE001 - malformed signature is a refusal
+            return None
+    if devices is None or not s.get("device") or not s.get("proof"):
+        return None
+    ok, _ = devices.verify_for(name, s["device"], s["proof"], hashlib.sha256(msg).digest())
+    return name if ok else None

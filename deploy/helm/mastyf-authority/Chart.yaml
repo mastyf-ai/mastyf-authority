@@ -1,0 +1,9 @@
+apiVersion: v2
+name: mastyf-authority
+description: Mastyf Authority - pre-execution authority with a damage ceiling (gateway, active + standby engines, key service)
+type: application
+version: 0.2.0
+appVersion: "0.2.0"
+home: https://github.com/mastyf-ai/mastyf-authority
+sources: [https://github.com/mastyf-ai/mastyf-authority]
+keywords: [security, authorization, insider-threat, zero-trust]

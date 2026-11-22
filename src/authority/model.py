@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-import pickle
 from pathlib import Path
 
 import numpy as np
@@ -89,23 +86,11 @@ class RiskModel:
 
     @classmethod
     def load(cls, path: str | Path):
-        """Loads the JSON model (cannot run code). Pickle files are refused unless
-        AUTHORITY_ALLOW_PICKLE=1 is set, because unpickling can execute code."""
-        import os
-
+        """Loads the data-only JSON model; nothing in the file can run code. Only JSON is accepted."""
         from .model_json import load_json
         path = Path(path)
-        if path.suffix != ".json" and path.with_suffix(".json").exists():
+        if path.suffix != ".json":
             path = path.with_suffix(".json")
-        if path.suffix == ".json":
-            return load_json(path)
-        if os.environ.get("AUTHORITY_ALLOW_PICKLE") != "1":
-            raise ValueError("refusing to load a pickle model; export to JSON (set AUTHORITY_ALLOW_PICKLE=1 once to convert)")
-        blob = path.read_bytes()
-        expected = path.with_suffix(".sha256").read_text().strip()
-        if hashlib.sha256(blob).hexdigest() != expected:
-            raise ValueError("model checksum mismatch: refusing to load")
-        d = pickle.loads(blob)  # noqa: S301 - explicit opt-in, checksum-verified, self-produced
-        if d.get("features") != FEATURE_NAMES:
-            raise ValueError("model was trained with a different feature set; retrain")
-        return cls(d["clf"], d.get("iso"), d.get("q"), d.get("meta"))
+        if not path.exists():
+            raise ValueError(f"model file not found: {path} (models are JSON only)")
+        return load_json(path)

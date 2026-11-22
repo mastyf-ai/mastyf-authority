@@ -1,0 +1,17 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-engine
+  labels: {{- include "ma.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1   # never drain both engines at once
+  selector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine } }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels: {{- include "ma.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } }

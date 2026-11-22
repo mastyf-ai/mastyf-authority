@@ -117,7 +117,9 @@
       "*pastebin*",
       "*.ngrok*"
     ],
-    "_comment": "exact registered destinations only: name patterns like s3://corp-* can be spoofed by anyone who can create a bucket with a matching name"
+    "_comment": "exact registered destinations only: name patterns like s3://corp-* can be spoofed by anyone who can create a bucket with a matching name",
+    "learn_on_approval": true,
+    "_comment_learn": "ask once: a destination a person approved for an identity stops escalating for that identity only (audited, reviewable); deny lists, limits, bait records and the model still apply"
   },
   "protected_branches": [
     "main",
@@ -141,7 +143,9 @@
     "skip": [
       "auth.login"
     ],
-    "_comment_skip": "action types the behavioural model and novelty do not judge; sign-ins are judged by device binding and ask-once destinations"
+    "_comment_skip": "action types the behavioural model and novelty do not judge; sign-ins are judged by device binding and ask-once destinations",
+    "warmup_days": 7,
+    "_comment_warmup": "new identities (no baseline yet: fewer than 20 allowed actions or under 7 days of history) are never refused by the model, only escalated, and middling scores are allowed and queued for review so a baseline can form; every other rule still applies. Bootstrap baselines with `authority learn` from existing logs to shorten this. 0 turns it off."
   },
   "grant_ttl_seconds": 60,
   "approval_ttl_seconds": 900,

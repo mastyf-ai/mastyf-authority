@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-engine
+  labels: {{- include "ma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: engine
+spec:
+  clusterIP: None   # headless: the gateway addresses each engine pod by name
+  publishNotReadyAddresses: true
+  selector: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine }
+  ports: [{ name: http, port: {{ .Values.engine.port }} }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-engine
+  labels: {{- include "ma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: engine
+spec:
+  serviceName: {{ .Release.Name }}-engine
+  replicas: {{ .Values.engine.replicas }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine }
+  template:
+    metadata:
+      labels: {{- include "ma.labels" . | nindent 8 }}
+        app.kubernetes.io/component: engine
+      annotations:
+        checksum/policy: {{ .Values.policy.json | sha256sum }}
+        {{- if .Values.monitoring.podAnnotations }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.engine.port | quote }}
+        prometheus.io/path: /metrics
+        {{- end }}
+    spec:
+      securityContext: {{- include "ma.podSecurity" . | nindent 8 }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60   # time to write a final snapshot
+      affinity:
+        podAntiAffinity:   # never both engines on one node
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine }
+      initContainers:
+        - name: signing-key
+          image: "{{ .Values.image.registry }}/mastyf-authority-authority:{{ include "ma.tag" . }}"
+          command: ["sh", "-c", "test -f /state/signing_key.pem || install -m 600 /secrets/signing/signing_key.pem /state/signing_key.pem"]
+          securityContext: {{- include "ma.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: state, mountPath: /state }
+            - { name: signing, mountPath: /secrets/signing, readOnly: true }
+      containers:
+        - name: engine
+          image: "{{ .Values.image.registry }}/mastyf-authority-authority:{{ include "ma.tag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - authority
+            - serve
+            - --policy=/config/policy.json
+            - --model=/model/risk_model.json
+            - --state=/state
+            - --host=0.0.0.0
+            - --port={{ .Values.engine.port }}
+            - --role=auto
+            - --follow=https://{{ .Release.Name }}-gateway:{{ .Values.gateway.port }}
+            - --peer=https://{{ .Release.Name }}-gateway:{{ .Values.gateway.port }}
+          env:
+            - { name: AUTHORITY_CALLERS, value: /secrets/callers/callers.json }
+            - { name: AUTHORITY_APPROVER_KEYS, value: /secrets/approvers/approvers.json }
+            - { name: AUTHORITY_SNAPSHOT_SECONDS, value: {{ .Values.engine.snapshotSeconds | quote }} }
+            - { name: AUTHORITY_KEYSERVICE, value: "tls:{{ .Release.Name }}-keyservice:{{ .Values.keyservice.port }}" }
+            - { name: AUTHORITY_KEYSERVICE_CA, value: /secrets/ks/ca.crt }   # verifies the key service's certificate
+            - { name: AUTHORITY_KEYSERVICE_CERT, value: /secrets/ks/client.crt }
+            - { name: AUTHORITY_KEYSERVICE_KEY, value: /secrets/ks/client.key }
+            - { name: AUTHORITY_PEER_CA, value: /secrets/gwtls/ca.crt }   # the CA that signed the gateway's certificate
+            - name: AUTHORITY_REPLICA_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.secrets.replicaKey }}, key: replica.key } }
+          ports: [{ name: http, containerPort: {{ .Values.engine.port }} }]
+          readinessProbe:   # standbys are "ready" too: the gateway, not Kubernetes, picks the active one
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 120   # first start can replay a long audit log
+            periodSeconds: 10
+            failureThreshold: 6
+          resources: {{- toYaml .Values.engine.resources | nindent 12 }}
+          securityContext: {{- include "ma.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: state, mountPath: /state }
+            - { name: tmp, mountPath: /tmp }
+            - { name: policy, mountPath: /config, readOnly: true }
+            - { name: model, mountPath: /model, readOnly: true }
+            - { name: callers, mountPath: /secrets/callers, readOnly: true }
+            - { name: approvers, mountPath: /secrets/approvers, readOnly: true }
+            - { name: kstls, mountPath: /secrets/ks, readOnly: true }
+            - { name: gwtls, mountPath: /secrets/gwtls, readOnly: true }
+      volumes:
+        - { name: tmp, emptyDir: {} }
+        - { name: policy, configMap: { name: {{ include "ma.policyCM" . }} } }
+        {{- if .Values.model.existingConfigMap }}
+        - { name: model, configMap: { name: {{ .Values.model.existingConfigMap }} } }
+        {{- else }}
+        - { name: model, emptyDir: {} }
+        {{- end }}
+        - { name: signing, secret: { secretName: {{ .Values.secrets.signingKey }}, defaultMode: 0400 } }
+        - { name: callers, secret: { secretName: {{ .Values.secrets.callers }}, defaultMode: 0400 } }
+        - { name: approvers, secret: { secretName: {{ .Values.secrets.approvers }}, defaultMode: 0400 } }
+        - { name: kstls, secret: { secretName: {{ .Values.secrets.keyserviceTls }}, defaultMode: 0400 } }
+        - { name: gwtls, secret: { secretName: {{ .Values.secrets.gatewayTls }}, defaultMode: 0400, items: [{ key: ca.crt, path: ca.crt }] } }
+  volumeClaimTemplates:
+    - metadata: { name: state }
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.engine.storage.storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources: { requests: { storage: {{ .Values.engine.storage.size }} } }

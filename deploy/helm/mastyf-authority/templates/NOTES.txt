@@ -1,0 +1,11 @@
+Mastyf Authority {{ include "ma.tag" . }} is starting.
+
+  Gateway:     https://{{ .Release.Name }}-gateway:{{ .Values.gateway.port }}  (clients use their bearer keys)
+  Engines:     {{ .Release.Name }}-engine-0 starts active; the others follow it and take over on failure.
+  Key service: {{ .Release.Name }}-keyservice:{{ .Values.keyservice.port }} (mutual TLS)
+
+Check:  kubectl exec {{ .Release.Name }}-engine-0 -- python -c "import urllib.request,json;print(json.load(urllib.request.urlopen('http://127.0.0.1:{{ .Values.engine.port }}/healthz')))"
+Expect role "active" on one engine and "standby" on the others, with equal "seq".
+
+Back up the KEK (or use keyservice.kekCommand with your KMS): losing it loses every record key.
+Runbook: https://github.com/mastyf-ai/mastyf-authority/blob/main/OPERATIONS.md

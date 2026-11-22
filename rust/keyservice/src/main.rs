@@ -67,6 +67,10 @@ fn handle(svc: &Svc, line: &str, fake_clock: bool) -> Value {
                     Some(Err(e)) => json!({"ok": false, "reason": format!("bad action: {e}")}),
                     None => json!({"ok": false, "reason": "missing action"}),
                 },
+                Some("fence") => match ks.fence(req["epoch"].as_u64().unwrap_or(0), req["sig"].as_str().unwrap_or("")) {
+                    Ok(e) => json!({"ok": true, "min_engine_epoch": e}),
+                    Err(e) => json!({"ok": false, "reason": e}),
+                },
                 Some("kek_status") => {
                     let (current, previous, unopenable) = ks.kek_status();
                     json!({"ok": true, "current": current, "previous": previous, "unopenable": unopenable})

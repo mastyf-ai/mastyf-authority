@@ -32,7 +32,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .actions import Action
 from .crypto import b64d, b64e, verify
-from .binding import wrap_to_device
+from .binding import approver_signed, wrap_to_device
 from .features import DAY, dest_key
 from .grants import GrantError, GrantVerifier
 from fnmatch import fnmatchcase
@@ -115,8 +115,9 @@ def overrun_message(grant_id: str, amount: int) -> bytes:
 class KeyService:
     def __init__(self, policy: BudgetPolicy, authority_public_key, approver_keys: dict, now=time.time,
                  kek: bytes | None = None, verifier=None, custody: bool = True, canary_ids: set | None = None,
-                 devices=None, cases=None):
+                 devices=None, cases=None, approver_devices=None):
         self.policy = policy
+        self.approver_devices = approver_devices  # binding.DeviceRegistry of approvers' passkeys
         self.devices = devices  # binding.DeviceRegistry
         self.cases = cases  # binding.CaseRegistry
         self.canary_ids = canary_ids or set()  # explicit bait ids, in addition to policy patterns
@@ -154,8 +155,8 @@ class KeyService:
         msg = f"mastyf-unfreeze|{identity}|{until}".encode()
         ok = set()
         for s_ in sigs or []:
-            name, pk = s_.get("approver"), self.approver_keys.get(s_.get("approver"))
-            if pk is not None and name != identity and verify(pk, b64d(s_.get("sig", "")), msg):
+            name = approver_signed(self.approver_keys, self.approver_devices, s_, msg)
+            if name is not None and name != identity:
                 ok.add(name)
         if len(ok) < self.policy.overrun_signatures:
             return False, f"unfreeze needs {self.policy.overrun_signatures} approver signatures"
@@ -178,10 +179,9 @@ class KeyService:
         signers, amounts = set(), set()
         for s in sigs:
             name, amount = s.get("approver"), s.get("amount")
-            pk = self.approver_keys.get(name)
-            if pk is None or name == requester or not isinstance(amount, int) or amount <= 0:
+            if name == requester or not isinstance(amount, int) or isinstance(amount, bool) or amount <= 0:
                 continue
-            if verify(pk, b64d(s.get("sig", "")), overrun_message(gid, amount)):
+            if approver_signed(self.approver_keys, self.approver_devices, s, overrun_message(gid, amount)) == name:
                 signers.add(name)
                 amounts.add(amount)
         if len(signers) >= self.policy.overrun_signatures and len(amounts) == 1:

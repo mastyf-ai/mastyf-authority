@@ -13,6 +13,29 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - uses: dtolnay/rust-toolchain@stable
-      - run: (cd rust/keyservice && cargo build --release --locked --bins)
+        with: { components: clippy }
+      - name: Rust lint (warnings are errors) and unit + randomized fuzz tests
+        run: |
+          cd rust/keyservice
+          cargo clippy --release --locked --all-targets -- -D warnings
+          FUZZ_ITERS=50000 cargo test --release --locked
+          cargo build --release --locked --bins
       - run: pip install -e '.[dev]' hypothesis
       - run: PYTHONPATH=src:tests pytest -q
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: Rust advisories, licences, bans and sources (deny.toml)
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with: { manifest-path: rust/keyservice/Cargo.toml }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Python dependency vulnerabilities and static analysis
+        run: |
+          pip install -e . pip-audit bandit
+          pip-audit --skip-editable
+          bandit -q -r src -lll

@@ -24,22 +24,26 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use mastyf_keyservice::http::{read_request, ReadErr, Req, MAX_BODY, MAX_HEAD};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
-const MAX_HEAD: usize = 16 * 1024;
-const MAX_BODY: usize = 2 * 1024 * 1024;
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(15);
 const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(10);
 
 const PUBLIC: [&str; 5] = ["/healthz", "/approve", "/enroll", "/web/app.js", "/web/app.css"];
 const GET_API: [&str; 7] = ["/v1/alerts", "/v1/pending", "/v1/public-key", "/v1/devices", "/v1/enroll/pending",
                             "/v1/enroll/status", "/metrics"];
-const POST_API: [&str; 16] = ["/v1/agents/session", "/v1/agents/revoke", "/v1/decide", "/v1/approve", "/v1/deny", "/v1/script/check", "/v1/grant/verify",
+const POST_API: [&str; 18] = ["/v1/agents/session", "/v1/agents/revoke", "/v1/decide", "/v1/approve", "/v1/deny", "/v1/script/check", "/v1/grant/verify",
                               "/v1/freeze", "/v1/unfreeze", "/v1/enroll/begin", "/v1/enroll/authorise",
-                              "/v1/enroll/approve", "/v1/enroll/finish", "/v1/devices/remove", "/v1/decide/batch", "/v1/noop"];
+                              "/v1/enroll/approve", "/v1/enroll/finish", "/v1/devices/remove", "/v1/decide/batch", "/v1/noop",
+                              "/v1/replication", "/v1/promote"];
 const PASS_HEADERS: [&str; 5] = ["content-type", "content-security-policy", "x-content-type-options",
                                  "referrer-policy", "cache-control"];
+
+fn args_all(args: &[String], name: &str) -> Vec<String> {
+    args.iter().enumerate().filter(|(_, a)| *a == name).filter_map(|(i, _)| args.get(i + 1).cloned()).collect()
+}
 
 fn arg(args: &[String], name: &str) -> Option<String> {
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
@@ -57,7 +61,10 @@ struct Bucket {
 
 struct Gate {
     callers: HashMap<String, String>, // sha256 hex of key -> identity
-    upstream: String,
+    upstreams: Vec<String>,
+    active: AtomicUsize,            // index into upstreams of the engine currently deciding
+    promote_key: Option<String>,    // bearer key the standby engine accepts for /v1/promote
+    failover_after: Duration,
     rate: f64,
     burst: f64,
     buckets: Mutex<HashMap<String, Bucket>>,
@@ -80,84 +87,6 @@ impl Gate {
             false
         }
     }
-}
-
-struct Req {
-    method: String,
-    path: String,
-    query: String,
-    auth: Option<String>,
-    body: Vec<u8>,
-    close: bool,
-}
-
-enum ReadErr {
-    Closed,
-    Bad(u16, &'static str),
-}
-
-fn read_request<S: Read>(s: &mut S, buf: &mut Vec<u8>) -> Result<Req, ReadErr> {
-    let mut tmp = [0u8; 8192];
-    let head_end = loop {
-        if let Some(p) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
-            break p + 4;
-        }
-        if buf.len() > MAX_HEAD {
-            return Err(ReadErr::Bad(431, "request headers too large"));
-        }
-        match s.read(&mut tmp) {
-            Ok(0) | Err(_) => return Err(ReadErr::Closed),
-            Ok(n) => buf.extend_from_slice(&tmp[..n]),
-        }
-    };
-    if head_end > MAX_HEAD {
-        return Err(ReadErr::Bad(431, "request headers too large"));
-    }
-    let mut hs = [httparse::EMPTY_HEADER; 32];
-    let mut r = httparse::Request::new(&mut hs);
-    match r.parse(&buf[..head_end]) {
-        Ok(httparse::Status::Complete(_)) => {}
-        _ => return Err(ReadErr::Bad(400, "malformed request")),
-    }
-    if r.version != Some(1) {
-        return Err(ReadErr::Bad(505, "HTTP/1.1 only"));
-    }
-    let method = r.method.unwrap_or("").to_string();
-    let target = r.path.unwrap_or("").to_string();
-    let (mut len, mut auth, mut close, mut seen_len) = (0usize, None, false, false);
-    for h in r.headers.iter() {
-        let name = h.name.to_ascii_lowercase();
-        let v = std::str::from_utf8(h.value).map_err(|_| ReadErr::Bad(400, "bad header"))?;
-        match name.as_str() {
-            "transfer-encoding" => return Err(ReadErr::Bad(411, "chunked bodies not accepted")),
-            "content-length" => {
-                if seen_len {
-                    return Err(ReadErr::Bad(400, "duplicate content-length"));
-                }
-                seen_len = true;
-                len = v.trim().parse().map_err(|_| ReadErr::Bad(400, "bad content-length"))?;
-            }
-            "authorization" => auth = Some(v.to_string()),
-            "connection" => close = v.eq_ignore_ascii_case("close"),
-            _ => {}
-        }
-    }
-    if len > MAX_BODY {
-        return Err(ReadErr::Bad(413, "body too large"));
-    }
-    buf.drain(..head_end);
-    while buf.len() < len {
-        match s.read(&mut tmp) {
-            Ok(0) | Err(_) => return Err(ReadErr::Closed),
-            Ok(n) => buf.extend_from_slice(&tmp[..n]),
-        }
-    }
-    let body: Vec<u8> = buf.drain(..len).collect();
-    let (path, query) = match target.split_once('?') {
-        Some((p, q)) => (p.to_string(), q.to_string()),
-        None => (target, String::new()),
-    };
-    Ok(Req { method, path, query, auth, body, close })
 }
 
 struct Resp {
@@ -194,9 +123,17 @@ fn write_resp<S: Write>(s: &mut S, r: &Resp, close: bool) -> std::io::Result<()>
 
 fn upstream_call(g: &Gate, conn: &mut Option<TcpStream>, method: &str, target: &str, auth: Option<&str>, body: &[u8])
                  -> Result<Resp, String> {
+    if g.upstreams.len() > 1 {
+        use std::net::ToSocketAddrs;
+        let want: Vec<std::net::SocketAddr> = g.upstreams[g.active.load(Ordering::SeqCst)].to_socket_addrs()
+            .map(|i| i.collect()).unwrap_or_default();
+        if conn.as_ref().is_some_and(|c| !c.peer_addr().is_ok_and(|a| want.contains(&a))) {
+            *conn = None; // the active engine changed (failover): never send to the old one
+        }
+    }
     for attempt in 0..2 {
         if conn.is_none() {
-            let c = TcpStream::connect(&g.upstream).map_err(|e| e.to_string())?;
+            let c = TcpStream::connect(&g.upstreams[g.active.load(Ordering::SeqCst)]).map_err(|e| e.to_string())?;
             let _ = c.set_read_timeout(Some(UPSTREAM_TIMEOUT));
             let _ = c.set_write_timeout(Some(UPSTREAM_TIMEOUT));
             let _ = c.set_nodelay(true);
@@ -278,6 +215,63 @@ fn read_response(c: &mut TcpStream) -> Result<(Resp, bool), String> {
     }
     body.truncate(len);
     Ok((Resp { status, headers, body }, keep))
+}
+
+/// One plain HTTP call to an engine (they listen on a private network / localhost).
+fn engine_call(addr: &str, method: &str, path: &str, auth: Option<&str>, body: &[u8]) -> Option<Value> {
+    use std::net::ToSocketAddrs;
+    let sa = addr.to_socket_addrs().ok()?.next()?;
+    let mut c = TcpStream::connect_timeout(&sa, Duration::from_secs(1)).ok()?;
+    let _ = c.set_read_timeout(Some(Duration::from_secs(8)));
+    let _ = c.set_write_timeout(Some(Duration::from_secs(2)));
+    let mut head = format!("{method} {path} HTTP/1.1\r\nHost: authority\r\nConnection: close\r\nContent-Length: {}\r\n",
+                           body.len());
+    if let Some(a) = auth {
+        head.push_str(&format!("Authorization: Bearer {a}\r\nContent-Type: application/json\r\n"));
+    }
+    head.push_str("\r\n");
+    c.write_all(head.as_bytes()).ok()?;
+    c.write_all(body).ok()?;
+    let (r, _) = read_response(&mut c).ok()?;
+    let mut v: Value = serde_json::from_slice(&r.body).ok()?;
+    v["_status"] = json!(r.status);
+    Some(v)
+}
+
+/// Every second: route to the engine that reports `active` with the highest epoch. If none is active
+/// for `failover_after`, promote a healthy standby (it fences the key service before it decides).
+fn failover_loop(g: &Gate) {
+    let mut no_active_since: Option<Instant> = None;
+    loop {
+        std::thread::sleep(Duration::from_secs(1));
+        let health: Vec<Option<Value>> = g.upstreams.iter().map(|u| engine_call(u, "GET", "/healthz", None, b"")).collect();
+        let best = health.iter().enumerate()
+            .filter_map(|(i, h)| h.as_ref().filter(|h| h["role"] == "active").map(|h| (h["epoch"].as_u64().unwrap_or(0), i)))
+            .max();
+        if let Some((epoch, i)) = best {
+            if g.active.swap(i, Ordering::SeqCst) != i {
+                eprintln!("mastyf-gateway: routing to {} (active, epoch {epoch})", g.upstreams[i]);
+            }
+            no_active_since = None;
+            continue;
+        }
+        let since = *no_active_since.get_or_insert_with(Instant::now);
+        if since.elapsed() < g.failover_after {
+            continue;
+        }
+        let Some(key) = g.promote_key.as_deref() else { continue };
+        if let Some(i) = health.iter().position(|h| h.as_ref().is_some_and(|h| h["role"] == "standby")) {
+            eprintln!("mastyf-gateway: no active engine for {:?}; promoting {}", since.elapsed(), g.upstreams[i]);
+            let r = engine_call(&g.upstreams[i], "POST", "/v1/promote", Some(key),
+                                br#"{"reason": "gateway: active engine unreachable"}"#);
+            let promoted = r.as_ref().is_some_and(|v| v["ok"] == true && v["role"] == "active");
+            eprintln!("mastyf-gateway: promote answered {}", r.map(|v| v.to_string()).unwrap_or_else(|| "nothing".into()));
+            if promoted {
+                g.active.store(i, Ordering::SeqCst); // route to it at once, not at the next health check
+                no_active_since = None;
+            }
+        }
+    }
 }
 
 fn handle(g: &Gate, ip: IpAddr, req: &Req, up: &mut Option<TcpStream>) -> Resp {
@@ -372,7 +366,12 @@ fn main() {
     }
     let num = |n: &str, d: f64| arg(&args, n).map(|v| v.parse().unwrap_or_else(|_| die(&format!("bad {n}")))).unwrap_or(d);
     let g = Arc::new(Gate {
-        callers, upstream: arg(&args, "--upstream").unwrap_or_else(|| "127.0.0.1:8740".into()),
+        callers,
+        upstreams: { let u = args_all(&args, "--upstream"); if u.is_empty() { vec!["127.0.0.1:8740".into()] } else { u } },
+        active: AtomicUsize::new(0),
+        promote_key: arg(&args, "--promote-key-file").map(|p| std::fs::read_to_string(p)
+            .unwrap_or_else(|e| die(&e.to_string())).trim().to_string()),
+        failover_after: Duration::from_secs_f64(num("--failover-after", 3.0)),
         rate: num("--rate", 50.0), burst: num("--burst", 200.0),
         buckets: Mutex::new(HashMap::new()), failures: Mutex::new(HashMap::new()),
         open: AtomicUsize::new(0), max_clients: num("--max-clients", 1024.0) as usize,
@@ -399,7 +398,11 @@ fn main() {
     let cfg = Arc::new(cfg);
     let listen = need("--listen");
     let listener = std::net::TcpListener::bind(&listen).unwrap_or_else(|e| die(&e.to_string()));
-    eprintln!("mastyf-gateway: TLS 1.3 on {listen} -> authority at {}", g.upstream);
+    eprintln!("mastyf-gateway: TLS 1.3 on {listen} -> authority engines {:?}", g.upstreams);
+    if g.upstreams.len() > 1 {
+        let g2 = g.clone();
+        std::thread::spawn(move || failover_loop(&g2));
+    }
     for tcp in listener.incoming().flatten() {
         let ip = tcp.peer_addr().map(|a| a.ip()).unwrap_or(IpAddr::from([0, 0, 0, 0]));
         if g.open.fetch_add(1, Ordering::SeqCst) >= g.max_clients {

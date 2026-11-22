@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-keyservice
+  labels: {{- include "ma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keyservice
+spec:
+  selector: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice }
+  ports: [{ name: mtls, port: {{ .Values.keyservice.port }}, targetPort: mtls }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-keyservice
+  labels: {{- include "ma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: keyservice
+spec:
+  serviceName: {{ .Release.Name }}-keyservice
+  replicas: 1   # one writer per journal; for a synchronous standby + witnesses see OPERATIONS.md (high availability)
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice }
+  template:
+    metadata:
+      labels: {{- include "ma.labels" . | nindent 8 }}
+        app.kubernetes.io/component: keyservice
+    spec:
+      securityContext: {{- include "ma.podSecurity" . | nindent 8 }}
+      automountServiceAccountToken: false
+      containers:
+        - name: keyservice
+          image: "{{ .Values.image.registry }}/mastyf-authority-keyservice:{{ include "ma.tag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --policy=/config/policy.json
+            - --authority-key=/authority/authority.pub.pem
+            - --approvers=/secrets/approvers/approvers.json
+            - --state-dir=/state
+            {{- if .Values.keyservice.kekCommand }}
+            - --kek-command={{ .Values.keyservice.kekCommand }}
+            {{- else }}
+            - --kek-file=/secrets/kek/kek.b64
+            {{- end }}
+            - --tls-listen=0.0.0.0:{{ .Values.keyservice.port }}
+            - --tls-cert=/tls/server.crt
+            - --tls-key=/tls/server.key
+            - --tls-client-ca=/tls/clients-ca.crt
+          ports: [{ name: mtls, containerPort: {{ .Values.keyservice.port }} }]
+          readinessProbe: { tcpSocket: { port: mtls }, periodSeconds: 5 }
+          livenessProbe: { tcpSocket: { port: mtls }, periodSeconds: 10 }
+          resources: {{- toYaml .Values.keyservice.resources | nindent 12 }}
+          securityContext: {{- include "ma.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: state, mountPath: /state }
+            - { name: policy, mountPath: /config, readOnly: true }
+            - { name: authority, mountPath: /authority, readOnly: true }
+            - { name: approvers, mountPath: /secrets/approvers, readOnly: true }
+            - { name: tls, mountPath: /tls, readOnly: true }
+            {{- if not .Values.keyservice.kekCommand }}
+            - { name: kek, mountPath: /secrets/kek, readOnly: true }
+            {{- end }}
+      volumes:
+        - { name: policy, configMap: { name: {{ include "ma.policyCM" . }} } }
+        - { name: authority, secret: { secretName: {{ .Values.secrets.signingKey }}, items: [{ key: authority.pub.pem, path: authority.pub.pem }] } }
+        - { name: approvers, secret: { secretName: {{ .Values.secrets.approvers }}, defaultMode: 0400 } }
+        - { name: tls, secret: { secretName: {{ .Values.secrets.keyserviceTls }}, defaultMode: 0400 } }
+        {{- if not .Values.keyservice.kekCommand }}
+        - { name: kek, secret: { secretName: {{ .Values.secrets.kek }}, defaultMode: 0400 } }
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata: { name: state }
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.keyservice.storage.storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources: { requests: { storage: {{ .Values.keyservice.storage.size }} } }

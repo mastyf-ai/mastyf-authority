@@ -30,6 +30,7 @@ from fnmatch import fnmatchcase
 
 from . import script_integrity
 from .actions import Action
+from .binding import approver_signed
 from .crypto import b64d, verify
 from .features import DAY
 from .grants import GrantError, GrantVerifier
@@ -75,8 +76,9 @@ class GateResult:
 
 class ChangeGate:
     def __init__(self, policy: GatePolicy, authority_public_key, approver_keys: dict, now=time.time, verifier=None,
-                 devices=None, campaign=None):
+                 devices=None, campaign=None, approver_devices=None):
         self.p = policy
+        self.approver_devices = approver_devices  # binding.DeviceRegistry of approvers' passkeys
         self.devices = devices  # binding.DeviceRegistry: impersonated sessions have no device key
         self.campaign = campaign  # script_firewall.CampaignDetector: same new code across many tenants
         self.verifier = verifier or GrantVerifier(authority_public_key, now=now)
@@ -92,9 +94,8 @@ class ChangeGate:
         ok = set()
         msg = gate_message(gid, a.fingerprint())
         for s in sigs or []:
-            name = s.get("approver")
-            pk = self.approver_keys.get(name)
-            if pk is not None and name != a.identity and verify(pk, b64d(s.get("sig", "")), msg):
+            name = approver_signed(self.approver_keys, self.approver_devices, s, msg)
+            if name is not None and name != a.identity:
                 ok.add(name)
         return ok
 

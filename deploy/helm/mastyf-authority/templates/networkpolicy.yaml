@@ -1,0 +1,50 @@
+# Default deny inside the release; then only: clients -> gateway, gateway -> engines, engines -> gateway
+# (replication through TLS) and engines/apps -> key service. Egress beyond these and DNS is denied.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-engine
+  labels: {{- include "ma.labels" . | nindent 4 }}
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine } }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{ podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } } }]
+      ports: [{ port: {{ .Values.engine.port }} }]
+  egress:
+    - to: [{ podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } } }]
+      ports: [{ port: {{ .Values.gateway.port }} }]
+    - to: [{ podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice } } }]
+      ports: [{ port: {{ .Values.keyservice.port }} }]
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels: {{- include "ma.labels" . | nindent 4 }}
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway } }
+  policyTypes: [Egress]
+  egress:
+    - to: [{ podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine } } }]
+      ports: [{ port: {{ .Values.engine.port }} }]
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-keyservice
+  labels: {{- include "ma.labels" . | nindent 4 }}
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: keyservice } }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: engine } }
+        {{- if .Values.keyserviceClients.namespaceSelector }}
+        - namespaceSelector: {{- toYaml .Values.keyserviceClients.namespaceSelector | nindent 12 }}
+        {{- end }}
+      ports: [{ port: {{ .Values.keyservice.port }} }]
+  egress:
+    - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]

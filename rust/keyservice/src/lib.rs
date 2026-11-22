@@ -16,11 +16,14 @@
 pub mod binding;
 pub mod gates;
 pub mod ha;
+pub mod http;
+pub mod fuzzing;
 pub mod undo;
 
 use binding::{CaseRegistry, DeviceCheck, DeviceRegistry};
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use aes_gcm::aead::{Aead, KeyInit, Payload};
@@ -494,9 +497,23 @@ impl GrantCheck {
     }
 
     fn verify(&mut self, token: &str, action: &Action, now: f64) -> Result<Map<String, Value>, String> {
-        match self {
+        let p = match self {
             GrantCheck::Single(v) => v.verify(token, action, now),
             GrantCheck::Quorum(q) => q.verify(token, action, now),
+        }?;
+        let ep = p.get("ep").and_then(Value::as_u64).unwrap_or(0);
+        let min = MIN_ENGINE_EPOCH.load(Ordering::SeqCst);
+        if ep < min {
+            return Err(format!("grant from a superseded authority engine (epoch {ep} < {min})"));
+        }
+        Ok(p)
+    }
+
+    /// The authority public keys this check accepts (any one may sign a fence).
+    pub fn keys(&self) -> Vec<VerifyingKey> {
+        match self {
+            GrantCheck::Single(v) => vec![v.pk],
+            GrantCheck::Quorum(q) => q.nodes.iter().map(|(_, v)| v.pk).collect(),
         }
     }
 }
@@ -715,6 +732,16 @@ pub fn approver_signed(keys: &HashMap<String, VerifyingKey>, devs: Option<&Appro
     }
 }
 
+/// Fencing for authority-engine failover: the lowest engine epoch whose grants are still accepted.
+/// A promoted standby engine raises it (signed `fence` op) before deciding anything, so grants from a
+/// superseded primary that is still running are refused everywhere grants are checked. One key
+/// service per process (the state-directory lock), so a process-wide value is the service's value.
+pub static MIN_ENGINE_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+pub fn fence_message(epoch: u64) -> Vec<u8> {
+    format!("mastyf-fence|{epoch}").into_bytes()
+}
+
 pub fn unfreeze_message(identity: &str, until: u64) -> Vec<u8> {
     format!("mastyf-unfreeze|{identity}|{until}").into_bytes()
 }
@@ -903,6 +930,10 @@ impl KeyService {
                     inner.frozen.remove(ev["id"].as_str().unwrap_or(""));
                     true
                 }
+                Some("fence") => {
+                    MIN_ENGINE_EPOCH.fetch_max(ev["ep"].as_u64().unwrap_or(0), Ordering::SeqCst);
+                    true
+                }
                 Some("freeze") => {
                     inner.frozen.insert(ev["id"].as_str().unwrap_or("").into(), ev["why"].as_str().unwrap_or("").into());
                     true
@@ -1039,6 +1070,25 @@ impl KeyService {
         inner.frozen.remove(identity);
         drop(inner);
         self.commit()
+    }
+
+    /// Raise the minimum engine epoch. Signed by an authority key over "mastyf-fence|<epoch>"; journaled
+    /// and synced (and so replicated to an HA standby) before it takes effect. Never lowers it.
+    pub fn fence(&self, epoch: u64, sig_b64: &str) -> Result<u64, String> {
+        let msg = fence_message(epoch);
+        let keys = self.inner.lock().unwrap().verifier.keys();
+        if !keys.iter().any(|k| b64_verify(k, sig_b64, &msg)) {
+            return Err("fence not signed by an authority key".into());
+        }
+        let cur = MIN_ENGINE_EPOCH.load(Ordering::SeqCst);
+        if epoch <= cur {
+            return Ok(cur);
+        }
+        let mut inner = self.inner.lock().unwrap();
+        Self::journal(&mut inner, json!({"e": "fence", "ep": epoch}))?;
+        drop(inner);
+        self.commit()?;
+        Ok(MIN_ENGINE_EPOCH.fetch_max(epoch, Ordering::SeqCst).max(epoch))
     }
 
     fn journal(inner: &mut Inner, v: Value) -> Result<(), String> {

@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from .actions import SENSITIVE, Action, ActionError
 from .audit import AuditLog
 from .crypto import b64d, b64e, verify
-from .features import DAY, HOUR, FeatureState, dest_key
+from .features import DAY, HOUR, MIN_PROFILE_EVENTS, FeatureState, dest_key
 from .agents import AgentSessions
 from .novelty import NoveltyScorer, ReviewQueue
 from .grants import GrantIssuer
@@ -93,9 +93,13 @@ class Authority:
         self.pending: dict[str, dict] = {}  # fingerprint -> escalated request awaiting a human
         self.daily: dict[tuple[str, str], deque] = defaultdict(deque)  # allowed volume, rolling 24h
         self.denials: dict[str, deque] = defaultdict(deque)
-        self.alerts: list[dict] = []
+        self.alerts: deque = deque(maxlen=5000)  # newest alerts; older ones are in the audit log
         self.counts: dict[str, int] = defaultdict(int)  # metrics: decisions by verdict/stage
         self._lock = threading.RLock()
+        self._promote_lock = threading.Lock()
+        self.role = "active"  # "standby" while following another engine (failover.py); "fenced" once replaced
+        self.replica_ack = (0, 0.0)  # (seq the standby has, when it said so)
+        self._replica_cv = threading.Condition()
 
     # ---- operator actions -------------------------------------------------
     def freeze(self, identity: str, reason: str) -> None:
@@ -151,6 +155,7 @@ class Authority:
             if not reason or len(reason) < 8:
                 raise ValueError("approval needs a reason (ticket or justification)")
             aid = secrets.token_hex(12)
+            self._prune_approvals()
             self.approvals[aid] = {
                 "fingerprint": fingerprint, "requester": requester, "approver": approver,
                 "reason": reason, "exp": self.now() + self.policy.approval_ttl_seconds, "used": False,
@@ -179,6 +184,8 @@ class Authority:
                     if verdict == ALLOW:
                         self.daily[(a.identity, a.action_type)].append((a.ts, a.count))
                     if verdict == ESCALATE and fp:
+                        if len(self.pending) >= self.MAX_PENDING:
+                            self.pending.pop(next(iter(self.pending)))
                         self.pending[fp] = {"fingerprint": fp, "requester": a.identity,
                                             "action": {k: v for k, v in a.to_dict().items() if k != "metadata"},
                                             "reasons": ev.get("reasons", []), "risk": ev.get("risk"), "ts": a.ts}
@@ -198,11 +205,16 @@ class Authority:
                         "reason": ev["reason"], "exp": rec["ts"] + self.policy.approval_ttl_seconds, "used": False}
                 elif kind == "denial":
                     self.pending.pop(ev.get("fingerprint"), None)
+                elif kind == "promotion":
+                    self.issuer.epoch = max(self.issuer.epoch, int(ev.get("epoch", 0)))
                 elif kind == "destination_learned":
                     self.learned_destinations[(ev["identity"], ev["destination"])] = rec["ts"]
                 elif kind == "integrity_report":
                     self.integrity[ev["sha256"]] = {"candidate_sha256": ev["sha256"], "verdict": ev["verdict"],
                                                     "findings": ev.get("findings", [])}
+                if kind == "approval" and len(self.approvals) >= 4096:
+                    self._prune_approvals()
+            self._prune_approvals()
         return n
 
     @property
@@ -356,7 +368,15 @@ class Authority:
             risk = round(nov, 4)
             escalations.extend(nov_why[:3])
         if risk is not None:
-            if risk >= p.deny_at:
+            if self._warming_up(a):
+                # Cold start: the model knows nothing about this identity yet, so it may ask but never refuse,
+                # and middling scores are allowed (and queued for review) so a baseline can form. Hard limits,
+                # bait records, deny lists, budgets and always-escalate rules above still apply in full.
+                if risk >= p.deny_at:
+                    escalations.append(f"behaviour unusual for {a.identity} during its warm-up (risk {risk:.2f})")
+                elif risk >= p.escalate_at:
+                    self.review.note(a.identity, a.ts, risk, [f"warm-up: allowed at risk {risk:.2f}"])
+            elif risk >= p.deny_at:
                 model_deny = True
             elif risk >= p.escalate_at:
                 escalations.append(f"behaviour unusual for {a.identity} (risk {risk:.2f})")
@@ -395,6 +415,46 @@ class Authority:
             return None
         return ap
 
+    MAX_PENDING = 1000
+
+    def note_replica(self, has_seq: int) -> None:
+        with self._replica_cv:
+            self.replica_ack = (max(has_seq, self.replica_ack[0]), time.time())
+            self._replica_cv.notify_all()
+
+    def wait_replicated(self, seq: int, timeout: float = 2.0) -> bool:
+        """Semi-synchronous replication for critical records (freezes, approvals, denials): while a standby
+        is connected (polled within 10 s), wait until it has `seq`, so a failover never loses them. Without
+        a standby, or after `timeout` (standby stalled), go on: availability over a stuck replica, alerted."""
+        end = time.time() + timeout
+        with self._replica_cv:
+            while self.replica_ack[0] < seq:
+                if time.time() - self.replica_ack[1] > 10:
+                    return False  # no standby attached
+                left = end - time.time()
+                if left <= 0:
+                    self._alert("replication_lag", seq=seq, standby_has=self.replica_ack[0])
+                    return False
+                self._replica_cv.wait(left)
+        return True
+
+    def _warming_up(self, a: Action) -> bool:
+        """policy model.warmup_days (0 = off): an identity is warming up until it has a baseline of
+        MIN_PROFILE_EVENTS allowed actions spread over at least that many days."""
+        days = self.policy.raw.get("model", {}).get("warmup_days", 0)
+        if not days:
+            return False
+        prof = self.state.profiles.get(a.identity)
+        return prof is None or prof.n < MIN_PROFILE_EVENTS or a.ts - prof.first_ts < days * DAY
+
+    def _prune_approvals(self) -> None:
+        """Used and expired approvals are dropped (they stay in the audit log), so memory stays bounded."""
+        if len(self.approvals) < 256:
+            return
+        t = self.now()
+        for k in [k for k, v in self.approvals.items() if v["used"] or v["exp"] < t]:
+            del self.approvals[k]
+
     def _daily_used(self, identity: str, atype: str, ts: float) -> int:
         dq = self.daily[(identity, atype)]
         while dq and dq[0][0] < ts - DAY:
@@ -413,6 +473,30 @@ class Authority:
         lines += ["# TYPE authority_frozen_identities gauge", f"authority_frozen_identities {len(self.frozen)}",
                   "# TYPE authority_pending_requests gauge", f"authority_pending_requests {len(self.pending)}",
                   "# TYPE authority_model_loaded gauge", f"authority_model_loaded {int(self.model is not None)}"]
+        seq, _ = self.audit.position
+        roles = {"active": 1, "standby": 0, "fenced": -1}
+        lines += ["# HELP authority_role 1 active, 0 standby, -1 fenced (replaced during a failover)",
+                  "# TYPE authority_role gauge", f"authority_role {roles.get(self.role, -1)}",
+                  "# TYPE authority_epoch gauge", f"authority_epoch {self.issuer.epoch}",
+                  "# TYPE authority_audit_seq gauge", f"authority_audit_seq {seq}",
+                  "# HELP authority_audit_unsynced_records decisions written but not yet fsynced (power-loss window)",
+                  "# TYPE authority_audit_unsynced_records gauge",
+                  f"authority_audit_unsynced_records {max(0, seq - self.audit.synced_seq)}"]
+        ack_seq, ack_t = self.replica_ack
+        if ack_t:
+            lines += ["# HELP authority_replication_lag_records records the standby does not have yet",
+                      "# TYPE authority_replication_lag_records gauge",
+                      f"authority_replication_lag_records {max(0, seq - ack_seq)}",
+                      "# TYPE authority_replication_last_contact_seconds gauge",
+                      f"authority_replication_last_contact_seconds {round(time.time() - ack_t, 1)}"]
+        f = getattr(self, "follower", None)
+        if f is not None and self.role == "standby":
+            lines += ["# TYPE authority_follower_lag_records gauge", f"authority_follower_lag_records {f.lag or 0}",
+                      "# TYPE authority_follower_last_contact_seconds gauge",
+                      f"authority_follower_last_contact_seconds {round(time.time() - f.last_contact, 1) if f.last_contact else -1}"]
+        snap_ts = getattr(self, "last_snapshot_ts", 0)
+        if snap_ts:
+            lines += ["# TYPE authority_snapshot_age_seconds gauge", f"authority_snapshot_age_seconds {round(time.time() - snap_ts)}"]
         return "\n".join(lines) + "\n"
 
     def _after(self, a: Action, d: Decision) -> None:
@@ -434,7 +518,7 @@ class Authority:
             self.pending[d.fingerprint] = {"fingerprint": d.fingerprint, "requester": a.identity,
                                            "action": {k: v for k, v in a.to_dict().items() if k != "metadata"},
                                            "reasons": d.reasons, "risk": d.risk, "ts": a.ts}
-            if len(self.pending) > 1000:
+            if len(self.pending) > self.MAX_PENDING:
                 self.pending.pop(next(iter(self.pending)))
         elif d.stage == "approval":
             self.pending.pop(d.fingerprint, None)

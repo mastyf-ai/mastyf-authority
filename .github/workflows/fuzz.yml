@@ -1,0 +1,32 @@
+name: Fuzzing
+# Coverage-guided fuzzing (libFuzzer) of everything that parses untrusted input in Rust: the gateway's
+# HTTP reader, the key service's release path, passkey assertions, the script checker and action JSON.
+# Each target asserts security invariants, not just "no crash" (see rust/keyservice/src/fuzzing.rs).
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+  schedule: [{ cron: "17 3 * * 1" }]
+  workflow_dispatch:
+permissions: { contents: read }
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: { target: [http, keyservice, script_check, webauthn, action] }
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz --locked
+      - name: Fuzz ${{ matrix.target }}
+        working-directory: rust/keyservice
+        run: |
+          secs=$([ "${{ github.event_name }}" = "schedule" ] && echo 1200 || echo 120)
+          cargo fuzz run ${{ matrix.target }} -- -max_total_time=$secs -rss_limit_mb=2048 -timeout=5
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-finding-${{ matrix.target }}
+          path: rust/keyservice/fuzz/artifacts/

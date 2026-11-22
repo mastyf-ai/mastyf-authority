@@ -1,0 +1,65 @@
+# Secrets are never put in values. Create them first (see NOTES / OPERATIONS.md) and name them here.
+image:
+  registry: ghcr.io/mastyf-ai
+  tag: ""            # defaults to v<appVersion>, the release tag
+  pullPolicy: IfNotPresent
+
+secrets:
+  signingKey: mastyf-signing-key        # keys: signing_key.pem (ONE key shared by the engines), authority.pub.pem
+  callers: mastyf-callers               # key: callers.json     (sha256(api key) -> identity; include "replica" and "admin")
+  approvers: mastyf-approvers           # key: approvers.json   (approver identity -> Ed25519 public key PEM)
+  replicaKey: mastyf-replica-key        # key: replica.key      (bearer key of the "replica" caller: replication + promotion)
+  gatewayTls: mastyf-gateway-tls        # keys: tls.crt, tls.key, ca.crt (cert-manager layout); SAN must include <release>-gateway
+  keyserviceTls: mastyf-keyservice-tls  # keys: server.crt, server.key (SAN <release>-keyservice), ca.crt (signed server.crt),
+                                        #       clients-ca.crt (signs client certs), client.crt, client.key (the engines' client cert)
+  kek: mastyf-kek                       # key: kek.b64 (32 bytes, base64). Prefer keyservice.kekCommand with your KMS.
+
+policy:
+  # The policy file. Leave empty to use an existing ConfigMap named in existingConfigMap (key: policy.json).
+  json: ""
+  existingConfigMap: ""
+
+model:
+  # The trained behavioural model (Enterprise). Empty: sensitive actions escalate to people.
+  existingConfigMap: ""   # key: risk_model.json
+
+engine:
+  replicas: 2          # pod -0 starts active, the others standby; the gateway promotes a standby on failure
+  port: 8740
+  storage: { size: 50Gi, storageClassName: "" }
+  snapshotSeconds: 300
+  resources:
+    requests: { cpu: "2", memory: 2Gi }
+    limits: { memory: 6Gi }
+
+gateway:
+  replicas: 2
+  port: 8443
+  rate: 50            # decisions per second per caller (token bucket)
+  burst: 200
+  failoverAfterSeconds: 3
+  service: { type: ClusterIP, annotations: {} }
+  resources:
+    requests: { cpu: 500m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+keyservice:
+  port: 8443
+  storage: { size: 20Gi, storageClassName: "" }
+  # A command printing the base64 KEK (e.g. a KMS decrypt). Empty: the KEK file from secrets.kek is used.
+  kekCommand: ""
+  resources:
+    requests: { cpu: "1", memory: 256Mi }
+    limits: { memory: 1Gi }
+
+# Namespaces whose pods may reach the key service (your applications that fetch record keys).
+keyserviceClients:
+  namespaceSelector: {}   # e.g. { matchLabels: { mastyf.ai/keyservice-client: "true" } }
+
+monitoring:
+  prometheusRule: false   # needs the Prometheus Operator CRDs
+  podAnnotations: true    # prometheus.io/scrape annotations on engine pods
+
+podSecurity:
+  runAsUser: 10001
+  fsGroup: 10001

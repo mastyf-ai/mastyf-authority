@@ -1,0 +1,10 @@
+{{- if not .Values.policy.existingConfigMap }}
+{{- if not .Values.policy.json }}{{ fail "set policy.json (your policy) or policy.existingConfigMap" }}{{ end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-policy
+  labels: {{- include "ma.labels" . | nindent 4 }}
+data:
+  policy.json: {{ .Values.policy.json | quote }}
+{{- end }}

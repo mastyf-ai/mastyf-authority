@@ -1,0 +1,48 @@
+[package]
+name = "mastyf-keyservice-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+mastyf-keyservice = { path = ".." }
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "http"
+path = "fuzz_targets/http.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "keyservice"
+path = "fuzz_targets/keyservice.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "script_check"
+path = "fuzz_targets/script_check.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "webauthn"
+path = "fuzz_targets/webauthn.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "action"
+path = "fuzz_targets/action.rs"
+test = false
+doc = false

@@ -39,6 +39,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import time
 import os
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -77,6 +78,10 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             pass
 
         def _send(self, code: int, obj) -> None:
+            c0 = getattr(self, "_crit0", None)
+            if c0 is not None and auth.audit.last_critical_seq > c0 and self.path != "/v1/replication":
+                # this request wrote a freeze/approval/denial: the standby has it before the caller hears back
+                auth.wait_replicated(auth.audit.last_critical_seq)
             body = json.dumps(obj).encode()
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
@@ -211,7 +216,8 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             if self.path in STATIC:
                 return self._static(*STATIC[self.path])
             if self.path == "/healthz":
-                return self._send(200, {"ok": True, "model": auth.model is not None, "policy": auth.policy.version})
+                return self._send(200, {"ok": True, "model": auth.model is not None, "policy": auth.policy.version,
+                                        "role": auth.role, "epoch": auth.issuer.epoch, "seq": auth.audit.position[0]})
             if self.path == "/metrics":
                 body = auth.metrics().encode()
                 self.send_response(200)
@@ -226,7 +232,7 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             if self.path == "/v1/alerts":
                 if who != "admin":
                     return self._send(403, {"error": "admin only"})
-                return self._send(200, {"alerts": auth.alerts[-200:], "frozen": auth.frozen})
+                return self._send(200, {"alerts": list(auth.alerts)[-200:], "frozen": auth.frozen})
             if self.path == "/v1/teams":
                 if who != "admin":
                     return self._send(403, {"error": "admin only"})
@@ -249,6 +255,10 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
+            self._crit0 = auth.audit.last_critical_seq
+            return self._post()
+
+        def _post(self):
             self._consumed = False
             if self.path.startswith("/scim/v2"):
                 return self._scim("POST")
@@ -257,6 +267,11 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
                 return self._send(401, {"error": "unauthorized"})
             if self.path in ("/v1/freeze", "/v1/unfreeze", "/v1/script/check") and who != "admin":
                 return self._send(403, {"error": "admin only"})
+            if auth.role != "active" and self.path in ("/v1/decide", "/v1/approve", "/v1/deny", "/v1/freeze",
+                                                       "/v1/unfreeze", "/v1/agents/session"):
+                body = {"verdict": DENY, "reasons": [f"this authority engine is {auth.role}; failing closed"]} \
+                    if self.path == "/v1/decide" else {"error": f"engine is {auth.role}"}
+                return self._send(503, body)
             try:
                 b = self._body()
             except (ValueError, json.JSONDecodeError) as e:
@@ -273,10 +288,35 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
                     return self._send(200, auth.agents.start(m, b["device"], b["proof"]))
                 if self.path == "/v1/agents/revoke":
                     return self._send(200, {"revoked": auth.agents.revoke(b["session"], who)})
+                if self.path == "/v1/replication":  # a standby engine pulls the audit records it lacks
+                    if who not in ("replica", "admin"):
+                        return self._send(403, {"error": "replication is for the standby engine's key"})
+                    after, wait = int(b.get("after", 0)), min(8.0, float(b.get("wait", 0)))
+                    auth.note_replica(after)  # the standby has everything up to `after`
+                    end = time.time() + wait
+                    recs = auth.audit.since(after, 2000)
+                    while not recs and time.time() < end and auth.role == "active":
+                        time.sleep(0.05)
+                        recs = auth.audit.since(after, 2000)
+                    hs, hh = auth.audit.position
+                    return self._send(200, {"records": recs, "head_seq": hs, "head_hash": hh,
+                                            "epoch": auth.issuer.epoch, "role": auth.role})
+                if self.path == "/v1/promote":  # a gateway that lost the active engine promotes this standby
+                    if who not in ("replica", "admin"):
+                        return self._send(403, {"error": "promotion needs the failover key"})
+                    from .failover import FailoverError, promote
+                    try:
+                        return self._send(200, promote(auth, auth.issuer.signer, getattr(auth, "follower", None),
+                                                       str(b.get("reason", "gateway failover"))[:200]))
+                    except FailoverError as e:
+                        return self._send(409, {"ok": False, "error": str(e)})
                 if self.path == "/v1/decide":
                     act = b.get("action")
                     if not isinstance(act, dict) or act.get("identity") != who:
                         return self._send(403, {"verdict": DENY, "reasons": ["action identity must be the caller's own"]})
+                    # The server's clock, never the caller's: daily limits, burst freezes and behavioural
+                    # features all count by time, so a backdated or future-dated request could reset them.
+                    act = {**act, "ts": auth.now()}
                     d = auth.decide(act, approval_id=b.get("approval_id"))
                     return self._send(200, d.to_dict())
                 if self.path == "/v1/approve":

@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels: {{- include "ma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+  {{- with .Values.gateway.service.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.gateway.service.type }}
+  selector: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway }
+  ports: [{ name: https, port: {{ .Values.gateway.port }}, targetPort: https }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels: {{- include "ma.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway }
+  template:
+    metadata:
+      labels: {{- include "ma.labels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+    spec:
+      securityContext: {{- include "ma.podSecurity" . | nindent 8 }}
+      automountServiceAccountToken: false
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: { app.kubernetes.io/instance: {{ .Release.Name }}, app.kubernetes.io/component: gateway }
+      containers:
+        - name: gateway
+          image: "{{ .Values.image.registry }}/mastyf-authority-gateway:{{ include "ma.tag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - --listen=0.0.0.0:{{ .Values.gateway.port }}
+            - --tls-cert=/tls/tls.crt
+            - --tls-key=/tls/tls.key
+            - --callers=/secrets/callers/callers.json
+            - --promote-key-file=/secrets/replica/replica.key
+            - --failover-after={{ .Values.gateway.failoverAfterSeconds }}
+            - --rate={{ .Values.gateway.rate }}
+            - --burst={{ .Values.gateway.burst }}
+            {{- range $i := until (int .Values.engine.replicas) }}
+            - --upstream={{ $.Release.Name }}-engine-{{ $i }}.{{ $.Release.Name }}-engine:{{ $.Values.engine.port }}
+            {{- end }}
+          ports: [{ name: https, containerPort: {{ .Values.gateway.port }} }]
+          readinessProbe:
+            tcpSocket: { port: https }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: https }
+            periodSeconds: 10
+          resources: {{- toYaml .Values.gateway.resources | nindent 12 }}
+          securityContext: {{- include "ma.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: tls, mountPath: /tls, readOnly: true }
+            - { name: callers, mountPath: /secrets/callers, readOnly: true }
+            - { name: replica, mountPath: /secrets/replica, readOnly: true }
+      volumes:
+        - { name: tls, secret: { secretName: {{ .Values.secrets.gatewayTls }}, defaultMode: 0400 } }
+        - { name: callers, secret: { secretName: {{ .Values.secrets.callers }}, defaultMode: 0400 } }
+        - { name: replica, secret: { secretName: {{ .Values.secrets.replicaKey }}, defaultMode: 0400 } }

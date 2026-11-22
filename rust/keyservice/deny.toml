@@ -1,0 +1,39 @@
+# cargo deny check — run in CI. Blocks known-vulnerable or unmaintained crates, licences that are
+# not permissive, and crates from anywhere but crates.io.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "MIT",
+  "BSD-1-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+  "AGPL-3.0-or-later",
+]
+
+[[licenses.clarify]]
+crate = "ring"
+expression = "Apache-2.0 AND ISC"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

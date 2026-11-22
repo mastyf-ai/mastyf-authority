@@ -48,7 +48,9 @@ def stack(tmp_path):
             time.sleep(0.1)
 
     def raw(data: bytes) -> bytes:
-        s = ctx.wrap_socket(socket.create_connection(("127.0.0.1", port), timeout=5), server_hostname="localhost")
+        # 1 s: an incomplete request is (correctly) held open by the gateway until more bytes arrive or its
+        # own 15 s client timeout; the test only needs to see that it never answers with anything but HTTP
+        s = ctx.wrap_socket(socket.create_connection(("127.0.0.1", port), timeout=1), server_hostname="localhost")
         s.sendall(data)
         out = b""
         try:
