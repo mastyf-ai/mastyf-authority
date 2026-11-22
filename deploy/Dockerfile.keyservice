@@ -1,5 +1,5 @@
 # Rust key service + change gates. Build: docker build -f deploy/Dockerfile.keyservice -t mastyf-keyservice .
-FROM rust:1.90-slim-bookworm AS build
+FROM rust:1.100-slim-bookworm AS build
 WORKDIR /src
 COPY rust/keyservice/ .
 # static (musl) binary: TLS is rustls, so the runtime image needs no OpenSSL or C library at all

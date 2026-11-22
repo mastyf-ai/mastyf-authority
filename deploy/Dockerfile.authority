@@ -1,7 +1,7 @@
 # Python authority (decisions, approvals, model). Build: docker build -f deploy/Dockerfile.authority -t mastyf-authority .
 # The model scorer's tree walks are built in Rust (rust/native, bit-identical to the Python reference; the engine
 # falls back to Python if the module is missing).
-FROM rust:1.90-slim-bookworm AS native
+FROM rust:1.100-slim-bookworm AS native
 RUN apt-get update && apt-get install -y --no-install-recommends python3-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY rust/native/ .
