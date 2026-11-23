@@ -7,6 +7,7 @@ approver's Ed25519 signature. Freeze/unfreeze/script-check/alerts are admin-only
 
 POST /v1/decide          {"action": {...}, "approval_id"?: str}         -> decision (+ grant if ALLOW)
 POST /v1/approve         {"fingerprint", "requester", "approver", "reason"} -> {"approval_id"}
+GET  /v1/approval?fingerprint=   the caller's own held request: waiting | approved (+ approval_id) | denied
 POST /v1/script/check    {"previous"?: str, "candidate": str, "allowed_hosts"?: [str]} -> integrity report
 POST /v1/grant/verify    {"grant": str, "action": {...}}                -> {"valid": bool, ...}
 POST /v1/freeze          {"identity", "reason"}
@@ -63,6 +64,13 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/approve": ("approve
           "/limits": ("limits.html", "text/html; charset=utf-8"), "/lab": ("lab.html", "text/html; charset=utf-8"),
           "/web/app.js": ("app.js", "text/javascript; charset=utf-8"), "/web/app.css": ("app.css", "text/css; charset=utf-8"),
           "/web/mark.png": ("mark.png", "image/png")}
+SECURITY_HEADERS = (
+    ("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
+    ("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=(), "
+                           "publickey-credentials-get=(self), publickey-credentials-create=(self)"),
+    ("Cross-Origin-Opener-Policy", "same-origin"), ("Cross-Origin-Embedder-Policy", "require-corp"),
+    ("Cross-Origin-Resource-Policy", "same-origin"), ("X-Frame-Options", "DENY"),
+)
 LAB_ON = os.environ.get("AUTHORITY_LAB", "1") != "0"
 # the Enterprise package ships the licence module; the open edition does not
 EDITION = "enterprise" if importlib.util.find_spec(f"{__package__}.licence") else "community"
@@ -101,12 +109,20 @@ def load_callers(path: str) -> dict[str, str]:
 
 def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifier, enroll=None, scim=None):
     class H(BaseHTTPRequestHandler):
-        server_version = "mastyf-authority/0.1"
+        server_version = "mastyf-authority"
+        sys_version = ""  # no Python version in the Server header (OWASP ZAP 10036)
         timeout = 15  # slow or stalled clients are dropped (no slowloris)
         protocol_version = "HTTP/1.1"  # keep-alive for callers making many decisions
 
         def log_message(self, fmt, *args):  # quieter default logging
             pass
+
+        def end_headers(self):
+            # every response, JSON or page: no sniffing, no referrer, no powerful browser features, and full
+            # cross-origin isolation (a hostile page cannot embed, open or read anything served here)
+            for k, v in SECURITY_HEADERS:
+                self.send_header(k, v)
+            super().end_headers()
 
         def _send(self, code: int, obj) -> None:
             c0 = getattr(self, "_crit0", None)
@@ -176,8 +192,6 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Content-Security-Policy", page_csp())
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(body)
@@ -311,6 +325,11 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             who = self._principal()
             if who is None:
                 return self._send(401, {"error": "unauthorized"})
+            if page == "/v1/approval":  # the requester polls its own held request
+                fp = parse_qs(urlsplit(self.path).query).get("fingerprint", [""])[0]
+                if len(fp) != 64:
+                    return self._send(400, {"error": "fingerprint (64 hex characters) required"})
+                return self._send(200, auth.approval_status(fp, who))
             if self.path == "/v1/lab":
                 if not LAB_ON:
                     return self._send(404, {"error": "the risk model lab is turned off (AUTHORITY_LAB=0)"})

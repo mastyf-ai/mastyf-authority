@@ -90,6 +90,30 @@ def test_pending_queue_visible_to_approvers_only(srv):
     assert not call(base, "/v1/pending", "k-dana-0123456789abcdef")[1]["pending"]
 
 
+def test_requester_learns_what_became_of_its_request(srv):
+    """GET /v1/approval: waiting, then approved with the id to retry with, or denied; only for the requester."""
+    base, dana = srv
+    bob, alice, dk = "k-bob-0123456789abcdef", "k-alice-0123456789abcdef", "k-dana-0123456789abcdef"
+    act = {"identity": "human:bob", "action_type": "secret.read", "resource": "vault://prod/ssh/hosts", "count": 40}
+    fp = call(base, "/v1/decide", bob, {"action": act})[1]["fingerprint"]
+    assert call(base, f"/v1/approval?fingerprint={fp}", bob)[1]["status"] == "waiting"
+    assert call(base, f"/v1/approval?fingerprint={fp}", alice)[1] == {"status": "unknown"}  # not hers
+    assert call(base, "/v1/approval?fingerprint=short", bob)[0] == 400
+    why = "CHG-77 rotation"
+    call(base, "/v1/approve", dk, {"fingerprint": fp, "requester": "human:bob", "approver": "human:dana",
+                                   "reason": why, "signature": sign_approval(dana, fp, "human:bob", why)})
+    st = call(base, f"/v1/approval?fingerprint={fp}", bob)[1]
+    assert st["status"] == "approved" and st["approver"] == "human:dana"
+    assert call(base, f"/v1/approval?fingerprint={fp}", alice)[1] == {"status": "unknown"}
+    assert call(base, "/v1/decide", bob, {"action": act, "approval_id": st["approval_id"]})[1]["verdict"] == "ALLOW"
+
+    act2 = {**act, "count": 41}
+    fp2 = call(base, "/v1/decide", bob, {"action": act2})[1]["fingerprint"]
+    call(base, "/v1/deny", dk, {"fingerprint": fp2, "approver": "human:dana", "reason": "not planned"})
+    st2 = call(base, f"/v1/approval?fingerprint={fp2}", bob)[1]
+    assert st2 == {"status": "denied", "approver": "human:dana", "reason": "not planned"}
+
+
 
 def test_server_ignores_caller_timestamps():
     """Future- or back-dated requests are stamped with the server's clock before the engine sees them,

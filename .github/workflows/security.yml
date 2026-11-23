@@ -1,0 +1,49 @@
+# Independent scanners on every change and every week. Results are public in this repository's Actions tab.
+#   dependencies  pip-audit (Python, PyPI advisory database) and OSV-Scanner (Rust lockfiles, osv.dev)
+#   code          Semgrep security rules (CodeQL runs in codeql.yml)
+#   web console   OWASP ZAP baseline scan against a running engine (`authority local`): fails on any new alert
+name: Security scans
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+  schedule: [{ cron: "17 4 * * 1" }]
+permissions: { contents: read }
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Python dependencies (pip-audit)
+        run: pip install pip-audit && pip-audit .
+      - name: Rust dependencies (OSV-Scanner)
+        run: |
+          curl -sSfL -o osv-scanner https://github.com/google/osv-scanner/releases/download/v2.2.4/osv-scanner_linux_amd64
+          chmod +x osv-scanner && ./osv-scanner scan source -r .
+  code:
+    runs-on: ubuntu-latest
+    container: { image: "semgrep/semgrep:1.140.0" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: Semgrep security rules (fails on ERROR severity)
+        run: semgrep scan --config p/python --config p/security-audit --config p/rust --config p/javascript --metrics=off --severity ERROR --error
+  web-console:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -e .
+      - name: Start the engine and console
+        run: |
+          AUTHORITY_LAB=0 nohup authority local --dir "$RUNNER_TEMP/local" --port 8740 > "$RUNNER_TEMP/engine.log" 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8740/healthz && break; sleep 1; done
+      - name: OWASP ZAP baseline scan (fails on any alert not explained in .zap/rules.tsv)
+        run: |
+          docker run --rm --network host -v "$PWD/.zap:/zap/wrk:rw" zaproxy/zap-stable:2.16.1 \
+            zap-baseline.py -t http://127.0.0.1:8740/ -c rules.tsv

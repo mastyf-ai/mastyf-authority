@@ -128,6 +128,7 @@ class Authority:
         self.integrity: dict[str, dict] = {}  # candidate sha256 -> report
         self.approvals: dict[str, dict] = {}  # approval id -> record
         self.pending: dict[str, dict] = {}  # fingerprint -> escalated request awaiting a human
+        self.denied: dict[str, dict] = {}  # fingerprint -> recent denial (requester, approver, reason), bounded
         self.daily: dict[tuple[str, str], deque] = defaultdict(deque)  # allowed volume, rolling 24h
         self.denials: dict[str, deque] = defaultdict(deque)
         self.risk_hist: dict[str, deque] = defaultdict(lambda: deque(maxlen=self.BASELINE_KEEP))
@@ -246,7 +247,9 @@ class Authority:
                         "fingerprint": ev["fingerprint"], "requester": ev["requester"], "approver": ev["approver"],
                         "reason": ev["reason"], "exp": rec["ts"] + self.policy.approval_ttl_seconds, "used": False}
                 elif kind == "denial":
-                    self.pending.pop(ev.get("fingerprint"), None)
+                    item = self.pending.pop(ev.get("fingerprint"), None)
+                    if item is not None:
+                        self._note_denied(ev["fingerprint"], item["requester"], ev.get("approver", ""), ev.get("reason", ""))
                 elif kind == "promotion":
                     self.issuer.epoch = max(self.issuer.epoch, int(ev.get("epoch", 0)))
                 elif kind == "origin_learned":
@@ -296,7 +299,33 @@ class Authority:
                 raise PermissionError(f"{approver} is not an approver")
             item = self.pending.pop(fingerprint, None)
             self.audit.append({"type": "denial", "fingerprint": fingerprint, "approver": approver, "reason": reason})
+            if item is not None:
+                self._note_denied(fingerprint, item["requester"], approver, reason)
             return item is not None
+
+    def _note_denied(self, fingerprint: str, requester: str, approver: str, reason: str) -> None:
+        self.denied.pop(fingerprint, None)
+        self.denied[fingerprint] = {"requester": requester, "approver": approver, "reason": reason}
+        while len(self.denied) > self.MAX_PENDING:
+            self.denied.pop(next(iter(self.denied)))
+
+    def approval_status(self, fingerprint: str, requester: str) -> dict:
+        """What became of the requester's own held request: waiting, approved (with the approval id to retry
+        with) or denied. Only the requester sees it: another identity learns nothing ("unknown")."""
+        with self._lock:
+            now = self.now()
+            for aid, ap in self.approvals.items():
+                if ap["fingerprint"] == fingerprint and ap["requester"] == requester and not ap["used"] \
+                        and ap["exp"] >= now:
+                    return {"status": "approved", "approval_id": aid, "approver": ap["approver"],
+                            "reason": ap["reason"], "expires": ap["exp"]}
+            pend = self.pending.get(fingerprint)
+            if pend and pend["requester"] == requester:
+                return {"status": "waiting", "reasons": pend["reasons"]}
+            den = self.denied.get(fingerprint)
+            if den and den["requester"] == requester:
+                return {"status": "denied", "approver": den["approver"], "reason": den["reason"]}
+            return {"status": "unknown"}
 
     # ---- decision ---------------------------------------------------------
     def _no_data_budget(self, a: Action) -> str | None:

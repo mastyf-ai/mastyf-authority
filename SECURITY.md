@@ -62,3 +62,24 @@ Not sure whether something is in scope? Ask in a private report first.
 ## 🏆 Hall of fame
 
 *Empty for now. Your name could be first.*
+
+## 5 · Who has checked this code
+
+Every check below runs in public: results are in this repository's **Actions** tab, and every release carries its
+own evidence.
+
+| Check | What it looks at | When |
+|---|---|---|
+| **CodeQL** (GitHub) | Code flaws in Python, Rust, the console's JavaScript and the CI workflows | Every change |
+| **Semgrep** security rules | Python, Rust and JavaScript patterns (fails on any ERROR finding) | Every change, weekly |
+| **pip-audit**, **OSV-Scanner** | Known vulnerabilities in Python and Rust dependencies | Every change, weekly |
+| **OWASP ZAP** baseline scan | The web console, attacked from outside while running (fails on any new alert) | Every change, weekly |
+| **Fuzzing** (cargo-fuzz + property tests) | The key service's parsers and budget logic | Every change |
+| **TLA+ model check** | The failover protocol (`formal/Failover.tla`; it found three bugs, all fixed) | By hand, when failover changes |
+| **Trivy** | Every release image (no fixable HIGH or CRITICAL issue may ship) | Every release |
+| **OpenSSF Scorecard** | The project's security practices | Weekly |
+| **Signed releases** | Sigstore signatures, SLSA build provenance and an SBOM for every image and package | Every release |
+
+**Not yet:** a manual audit by an independent firm. We have asked the Open Source Technology Improvement Fund
+(OSTIF) for one; until it is done, treat Authority as unaudited and start in shadow mode. When the report exists it
+will be linked here, in full, with every finding and its fix.

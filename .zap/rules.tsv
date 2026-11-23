@@ -1,0 +1,4 @@
+10027	IGNORE	(Suspicious comments: the console is open source; its comments are public by design)
+10049	IGNORE	(Non-storable content: every page and answer is sent with Cache-Control: no-store on purpose)
+10109	IGNORE	(Modern web application: informational only)
+10116	IGNORE	(ZAP is out of date: the scanner image is pinned on purpose for repeatable results)
