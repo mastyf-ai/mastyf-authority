@@ -30,6 +30,39 @@ Freezes, unfreezes, approvals and denials reach the standby **before** the calle
 can never lose them. Routine decisions are replicated within milliseconds; a failover can lose the last few,
 which costs nothing for safety because data budgets are counted by the key service, not the engine.
 
+## Credentials
+
+To try everything on one computer, `authority local` makes all of these for you (see the README). For a real
+deployment, make them yourself:
+
+**API keys and the callers file.** Every caller (a person, a service, an AI agent, the admin, the standby
+engine) gets its own random key, bound to exactly one identity. The engine stores only each key's SHA-256:
+
+```bash
+key=$(openssl rand -base64 33 | tr '+/' '-_')                                  # give this to the caller only
+printf '%s' "$key" | openssl dgst -sha256 | awk '{print $NF}'                 # goes into callers.json
+```
+
+```json
+{"<sha256 of alice's key>": "human:alice", "<sha256 of the admin key>": "admin", "<sha256 of the standby's key>": "replica"}
+```
+
+Point the engine at it with `AUTHORITY_CALLERS=/path/callers.json`. Keep the keys themselves in your secret
+store. To revoke a key, delete its line and restart.
+
+**Approvers.** Each approver signs with a passkey (recommended) or an Ed25519 key:
+
+- *Passkeys*: set `AUTHORITY_RP_ID` (the console's domain, e.g. `authority.corp.example`),
+  `AUTHORITY_ORIGIN` (`https://authority.corp.example`) and `AUTHORITY_DEVICES` (the devices file, shared with the
+  key service). Approvers add their passkeys on the console's *Devices* page. The first passkey of each person
+  needs two other approvers to agree.
+- *Ed25519 keys*: each approver runs `authority approver keygen` on their own machine. The private key stays
+  in `~/.mastyf/approver.pem`; the command prints the public key. Collect them into a file
+  `{"human:dana": "-----BEGIN PUBLIC KEY-----..."}` and set `AUTHORITY_APPROVER_KEYS` to it.
+
+Who may approve is set in the policy (`"approver": true` on a human identity). Single sign-on can replace the
+API key for the console, but approving still needs the person's passkey: see [Single sign-on](#single-sign-on).
+
 ## Deploy on Kubernetes
 
 The Helm chart is in [`deploy/helm/mastyf-authority`](deploy/helm/mastyf-authority) and is attached to every release.

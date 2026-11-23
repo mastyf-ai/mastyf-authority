@@ -41,7 +41,7 @@ Most security tries to spot attackers. **Authority assumes some will get in, and
 | I'm a… | Start with | Time |
 |---|---|---|
 | 🛡️ **Security lead** | [Free Damage Ceiling Report](https://www.mastyf.ai/authority#report): the most a stolen login can take from your company, from 30 days of read-only logs · [Pricing](https://www.mastyf.ai/authority#pricing) | 48 h |
-| 🧑‍💻 **Engineer** | [Quick start](#quick-start): install, train a model, replay real incidents | 2 min |
+| 🧑‍💻 **Engineer** | [Quick start](#quick-start): install, then `authority local` to [try the web console](#try-the-web-console) | 2 min |
 | 🕵️ **Security researcher** | [Break it](#break-it): a fake company on the real components, with flags and safe harbour | 10 min |
 | 🤝 **Contributor** | [CONTRIBUTING.md](CONTRIBUTING.md): one focused change, one test, one CLA comment | — |
 
@@ -121,6 +121,40 @@ authority train --out artifacts                    # train your own risk model o
 authority replay                                   # run the incidents end to end through the authority
 authority ceiling --policy policies/default.json   # the worst-case damage of a compromise, from your policy
 ```
+
+### Try the web console
+
+One command creates every key and starts the engine with its console:
+
+```bash
+authority local
+```
+
+It prints two sign-in keys and serves the console at **http://localhost:8740**:
+
+| Key | What it opens |
+|---|---|
+| **Yours** (an approver, `human:dana` in the sample policy) | Approvals, Devices and the Risk model lab |
+| **Admin** | Team limits |
+
+Then, in a second terminal:
+
+1. **Add your passkey.** Open *Devices*, name your device and click *Add this device*. Your first passkey needs two approvers to agree, so run `authority local approve-device`: two simulated colleagues approve it. Click *Register this device* and confirm with your computer's password or Touch ID. A phone or security key works too.
+2. **Make something to approve.** Run `authority local try`. It sends three sample requests: one allowed, one held for approval, one blocked. The held one appears on *Approvals*, where you approve or deny it with your passkey.
+3. **Try the risk model.** Open *Risk model lab* to see what a model would allow, hold or block, side by side with today's decision, and to replay your own approvals through it.
+
+`authority local keys` shows the keys again. Everything lives in `~/.mastyf/local` (change it with `--dir`):
+
+| File | What it is |
+|---|---|
+| `keys.json` | One API key per person and service in the policy, plus `admin`. Private: readable by you only. |
+| `callers.json` | What the engine checks keys against (`sha256(key)` to identity). The engine never stores the keys. |
+| `approver_keys.json`, `bob.key`, `erin.key` | The two simulated colleagues: their public keys, and their private signing keys. |
+| `devices.json`, `state/` | Registered passkeys, the signed audit log and snapshots. Created by the engine. |
+
+Use your own policy with `--policy my-policy.json` (it needs at least three human approvers). `--reset-keys` makes new keys; the old ones stop working.
+
+This setup is for trying Authority on one computer. In production, keys come from your secret store, approvers are real people with their own passkeys, and the engine runs behind TLS: see [OPERATIONS.md](OPERATIONS.md).
 
 <details>
 <summary><b>Build the Rust key service and run every test</b></summary>

@@ -183,6 +183,16 @@ def main(argv: list[str] | None = None) -> None:
     sh.add_argument("--learn-days", type=int, default=30)
     sh.add_argument("--out", default="shadow_report.json")
 
+    lo = sub.add_parser("local", help="run the engine and web console on this computer, credentials made for you")
+    lo.add_argument("op", nargs="?", default="start", choices=["start", "keys", "try", "approve-device"],
+                    help="start (default): set up on first run and serve; keys: show sign-in keys; try: send sample "
+                         "requests; approve-device: two simulated colleagues approve your first passkey")
+    lo.add_argument("--dir", default="~/.mastyf/local", help="where keys and state live (default ~/.mastyf/local)")
+    lo.add_argument("--port", type=int, default=8740)
+    lo.add_argument("--policy", help="policy file (default: policies/default.json, or the copy in the package)")
+    lo.add_argument("--model", default="none", help="risk model file, or none")
+    lo.add_argument("--reset-keys", action="store_true", help="make new keys (old ones stop working)")
+
     s = sub.add_parser("serve", help="run the HTTP authority")
     s.add_argument("--policy", default="policies/default.json")
     s.add_argument("--model", default="artifacts/risk_model.json")
@@ -212,6 +222,9 @@ def main(argv: list[str] | None = None) -> None:
     evv.add_argument("--public-key", required=True, help="the engine's authority.pub.pem")
 
     a = ap.parse_args(argv)
+    if a.cmd == "local":
+        from . import local
+        return local.main(a.op, a.dir, a.port, a.policy, a.model, a.reset_keys)
     if a.cmd == "failover":
         from pathlib import Path as _P
         from .crypto import Signer, b64e

@@ -132,7 +132,8 @@ function signin(onLoad, what) {
   const btnRow = el("div", { class: "fields" }, input, go);
   const form = el("div", { class: "card signin" }, el("div", { class: "lock", "aria-hidden": "true" }, "🔑"),
     el("div", {}, el("label", { for: "apikey" }, what || "Your API key"), btnRow,
-      el("div", { class: "faint" }, "Your admin gives you this key. It is kept in this browser tab only."), msg));
+      el("div", { class: "faint" }, "Your admin gives you this key. Trying it on your own computer? Run ",
+        el("span", { class: "mono" }, "authority local keys"), " to see yours. The key is kept in this browser tab only."), msg));
   const done = (who) => {
     host.replaceChildren(el("div", { class: "who" }, avatar(who), el("div", {}, "Signed in as ", el("strong", {}, short(who)),
       el("span", { class: "faint" }, " · " + who)), el("span", { class: "spacer" }),

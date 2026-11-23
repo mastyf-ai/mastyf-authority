@@ -24,5 +24,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/authority"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"policies/default.json" = "authority/policies/default.json"   # `authority local` works after `pip install`
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
