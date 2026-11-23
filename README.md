@@ -41,6 +41,7 @@ Most security tries to spot attackers. **Authority assumes some will get in, and
 | I'm a… | Start with | Time |
 |---|---|---|
 | 🛡️ **Security lead** | [Free Damage Ceiling Report](https://www.mastyf.ai/authority#report): the most a stolen login can take from your company, from 30 days of read-only logs · [Pricing](https://www.mastyf.ai/authority#pricing) | 48 h |
+| 🏢 **Engineering lead** | [Install the GitHub App](#try-it-on-your-github-organisation): a free weekly report of what Authority would have held in your organisation | 1 min |
 | 🧑‍💻 **Engineer** | [Quick start](#quick-start): install, then `authority local` to [try the web console](#try-the-web-console) | 2 min |
 | 🕵️ **Security researcher** | [Break it](#break-it): a fake company on the real components, with flags and safe harbour | 10 min |
 | 🤝 **Contributor** | [CONTRIBUTING.md](CONTRIBUTING.md): one focused change, one test, one CLA comment | — |
@@ -121,6 +122,29 @@ authority train --out artifacts                    # train your own risk model o
 authority replay                                   # run the incidents end to end through the authority
 authority ceiling --policy policies/default.json   # the worst-case damage of a compromise, from your policy
 ```
+
+### Try it on your GitHub organisation
+
+No setup: install **[Mastyf Authority](https://github.com/apps/mastyf-authority)** on your organisation. It runs in
+**shadow mode**: it blocks nothing and asks nobody, it decides each risky event the way Authority would, and once a
+week it posts a report as an issue in a private repository of yours.
+
+| It watches | What Authority would do |
+|---|---|
+| Force-pushes to `main`, `master`, `release/*` or the default branch | Refuse: history on protected branches is not rewritten |
+| Repositories deleted, made public or transferred | Hold for a second person's approval |
+| New organisation owners, collaborators and deploy keys | Hold for a second person's approval |
+| Branch protection or rulesets removed or weakened | Hold for a second person's approval |
+| Other force-pushes and deleted branches | Hold them only when unusual for that account |
+
+**What it can see, and what it keeps.** It asks for read access to metadata, administration, members and
+deployments, and to contents only because GitHub sends push events to apps with that permission; it never reads
+code. It writes issues, for the report. It keeps the event kind, account, repository, branch, time and verdict for 90
+days, and uninstalling it deletes all of that. Reports go only to a private repository: add one named
+`mastyf-reports` (or `.github`) to the installation; with no private repository, nothing is posted.
+
+The app is a hosted service run by Mastyf (it is not part of this repository). To run Authority yourself, on your own
+infrastructure, use the quick start above.
 
 ### Try the web console
 
