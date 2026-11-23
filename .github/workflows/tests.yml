@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       # pinned (same as local builds): rustc 1.100 fails to infer sha2/digest 0.10 types
       - uses: dtolnay/rust-toolchain@master
@@ -37,7 +37,7 @@ jobs:
       - name: Rust advisories, licences, bans and sources (deny.toml)
         uses: EmbarkStudios/cargo-deny-action@v2
         with: { manifest-path: rust/keyservice/Cargo.toml }
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - name: Python dependency vulnerabilities and static analysis
         run: |
