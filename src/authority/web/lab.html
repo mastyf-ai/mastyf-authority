@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Risk model lab · Mastyf Authority</title><link rel="icon" href="/web/mark.png"><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
+<body data-page="lab"><header class="top" id="top"></header>
+<main>
+<p class="eyebrow">Risk model lab · try it safely</p>
+<h1>See what a risk model would decide</h1>
+<p class="sub">A safe copy of your engine with 30 days of normal activity behind it. Try an action and see what happens today, with no model, next to what happens with the risk model. Nothing here touches your live engine.</p>
+<div id="signin"></div>
+
+<div id="work" hidden>
+<div id="labstate"></div>
+
+<div id="labui" hidden>
+<div class="score" id="score">
+  <div><b id="sc-tries">0</b><span>actions tried</span></div>
+  <div class="ok"><b id="sc-saved">0</b><span>interruptions saved</span></div>
+  <div class="bad"><b id="sc-caught">0</b><span>extra threats blocked</span></div>
+  <div class="spacer"></div>
+  <button class="ghost sm" id="reset">Reset the lab</button>
+</div>
+
+<h2>1 · Pick a situation, or build your own</h2>
+<div class="presets" id="presets"></div>
+
+<div class="labgrid">
+  <div class="card flat">
+    <label for="who">Who</label><select id="who"></select>
+    <label for="atype">Does what</label><select id="atype"></select>
+    <label for="res">On which system or data</label><input id="res" autocomplete="off">
+    <label for="cnt">How many records or items: <strong id="cntv">1</strong></label>
+    <input id="cnt" type="range" min="0" max="60" step="1" value="0">
+    <label for="dest">Sending it to (optional)</label><input id="dest" autocomplete="off" placeholder="leave empty if nothing leaves">
+    <div class="chips" id="destchips"></div>
+    <label for="hour">At what time: <strong id="hourv">11:00</strong></label>
+    <input id="hour" type="range" min="0" max="23" step="1" value="11">
+    <div class="row"><button class="primary" id="run">Run this action</button><span class="faint" id="labtime"></span></div>
+  </div>
+
+  <div id="result">
+    <div class="card flat placeholder"><img src="/web/mark.png" alt=""><p class="empty">Pick a situation on the left to see both engines decide.</p></div>
+  </div>
+</div>
+
+<h2>2 · Replay your own decisions</h2>
+<div class="card flat">
+  <p class="muted">Run every request your live engine held or refused back through the model, next to what you decided. This is the quickest way to see how many interruptions a model would save your team.</p>
+  <div class="row"><button class="primary" id="replay">Replay my engine's requests</button><span class="msg" id="replaymsg"></span></div>
+  <div id="replayout"></div>
+</div>
+</div>
+
+<section class="upgrade" id="upgrade">
+  <p class="eyebrow" id="up-eyebrow">From the lab to your company</p>
+  <h2 id="up-title">Ready to see this on your own logs?</h2>
+  <p id="up-text">This lab runs on 30 days of made-up activity and a preview model trained here in seconds on synthetic incidents. Paid plans bring in your real history: connectors for AWS CloudTrail, Okta and GitHub audit logs, and shadow mode, which runs a month of your own activity through the engine and reports what it would have held, before it decides anything. Your team's baselines and limits then come from how your company actually works.</p>
+  <div class="row"><a class="btn primary" href="https://www.mastyf.ai/authority#pricing" target="_blank" rel="noopener">See plans</a><span class="faint">Or train a model yourself: <span class="mono">authority train</span></span></div>
+</section>
+</div>
+</main>
+<footer id="foot"></footer>
+</body></html>

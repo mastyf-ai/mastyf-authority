@@ -21,7 +21,11 @@ GET  /v1/public-key      PEM of the grant/audit signing key
 GET  /healthz
 
 Devices and approvals in the browser (passkeys; see enroll.py):
-GET  /approve, /enroll           web pages (static; strict CSP, no inline script)
+GET  /, /approve, /enroll, /lab  web console: overview, approvals, devices, risk model lab (static; strict CSP)
+GET  /v1/lab                    risk model lab status (preview.py; sandboxed engines, AUTHORITY_LAB=0 turns it off)
+POST /v1/lab/try                {"action", "hour"?}: the same action with and without a risk model, in the sandbox
+POST /v1/lab/replay             the live engine's held / refused actions re-run with the model (approvers, admin)
+POST /v1/lab/reset              {}
 GET  /v1/devices                 the caller's registered devices
 GET  /v1/enroll/pending          enrolment requests waiting for approvers (approvers only)
 GET  /v1/enroll/status?rid=      the caller's own request
@@ -38,6 +42,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import importlib.util
 import json
 import time
 import os
@@ -48,14 +53,19 @@ from urllib.parse import parse_qs, urlsplit
 from . import script_integrity
 from .actions import Action, ActionError
 from .engine import DENY, Authority
+from .preview import lab_for
 from .crypto import b64d, b64e
 from .grants import GrantError, GrantVerifier
 
 MAX_BODY = 2 * 1024 * 1024
 WEB = Path(__file__).resolve().parent / "web"
-STATIC = {"/approve": ("approve.html", "text/html; charset=utf-8"), "/enroll": ("enroll.html", "text/html; charset=utf-8"),
-          "/limits": ("limits.html", "text/html; charset=utf-8"),
-          "/web/app.js": ("app.js", "text/javascript; charset=utf-8"), "/web/app.css": ("app.css", "text/css; charset=utf-8")}
+STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/approve": ("approve.html", "text/html; charset=utf-8"), "/enroll": ("enroll.html", "text/html; charset=utf-8"),
+          "/limits": ("limits.html", "text/html; charset=utf-8"), "/lab": ("lab.html", "text/html; charset=utf-8"),
+          "/web/app.js": ("app.js", "text/javascript; charset=utf-8"), "/web/app.css": ("app.css", "text/css; charset=utf-8"),
+          "/web/mark.png": ("mark.png", "image/png")}
+LAB_ON = os.environ.get("AUTHORITY_LAB", "1") != "0"
+# the Enterprise package ships the licence module; the open edition does not
+EDITION = "enterprise" if importlib.util.find_spec(f"{__package__}.licence") else "community"
 PAGE_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; "
             "frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 
@@ -172,6 +182,27 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             self.end_headers()
             self.wfile.write(body)
 
+        def _lab_post(self, who: str, b: dict):
+            """The risk model lab (preview.py): sandboxed engines only; nothing here reaches the live engine."""
+            if not LAB_ON:
+                return self._send(404, {"error": "the risk model lab is turned off (AUTHORITY_LAB=0)"})
+            lab = lab_for(auth)
+            try:
+                if self.path == "/v1/lab/try":
+                    hour = b.get("hour")
+                    return self._send(200, lab.try_action(b["action"], None if hour is None else float(hour)))
+                if self.path == "/v1/lab/reset":
+                    lab.reset()
+                    return self._send(200, lab.status())
+                if self.path == "/v1/lab/replay":  # other people's requests: approvers and admins only
+                    if not (who == "admin" or self._is_approver(who)):
+                        return self._send(403, {"error": "approvers only"})
+                    seq = auth.audit.position[0]
+                    return self._send(200, lab.replay(auth.audit.since(max(0, seq - 5000), 5000)))
+            except RuntimeError as e:
+                return self._send(409, {"error": str(e)})
+            return self._send(404, {"error": "not found"})
+
         def _is_approver(self, who: str) -> bool:
             rule = auth.policy.identities.get(who)
             return bool(rule and rule.approver and rule.kind == "human")
@@ -268,7 +299,7 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             if self.path == "/healthz":
                 return self._send(200, {"ok": True, "model": auth.model is not None, "policy": auth.policy.version,
                                         "role": auth.role, "epoch": auth.issuer.epoch, "seq": auth.audit.position[0],
-                                        "shard": auth.issuer.shard})
+                                        "shard": auth.issuer.shard, "edition": EDITION})
             if self.path == "/metrics":
                 body = auth.metrics().encode()
                 self.send_response(200)
@@ -280,6 +311,10 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             who = self._principal()
             if who is None:
                 return self._send(401, {"error": "unauthorized"})
+            if self.path == "/v1/lab":
+                if not LAB_ON:
+                    return self._send(404, {"error": "the risk model lab is turned off (AUTHORITY_LAB=0)"})
+                return self._send(200, lab_for(auth).status())
             if self.path == "/v1/alerts":
                 if who != "admin":
                     return self._send(403, {"error": "admin only"})
@@ -332,6 +367,8 @@ def make_handler(auth: Authority, callers: dict[str, str], verifier: GrantVerifi
             try:
                 if self.path.startswith(("/v1/enroll/", "/v1/devices/")):
                     return self._devices_post(who, b)
+                if self.path.startswith("/v1/lab/"):
+                    return self._lab_post(who, b)
                 if self.path == "/v1/agents/session":  # a person approves an agent's task with their passkey
                     m = b["manifest"]
                     if not isinstance(m, dict) or m.get("principal") != who:

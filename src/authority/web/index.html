@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mastyf Authority</title><link rel="icon" href="/web/mark.png"><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
+<body data-page="home"><header class="top" id="top"></header>
+<main>
+<section class="hero">
+  <div>
+    <p class="eyebrow">Mastyf Authority · local console</p>
+    <h1>Every risky action waits for the right person.</h1>
+    <p class="sub">Your people, services and AI agents ask before they act. Normal work goes straight through. Anything risky is held until a second person approves it with their passkey. Anything forbidden never happens.</p>
+    <div class="row"><a class="btn primary" href="/approve">Open approvals</a><a class="btn ghost" href="/lab">Try the risk model lab</a></div>
+  </div>
+  <div class="card live flat">
+    <div class="live__head"><h3>Live on this engine</h3><span class="status" id="livestate"><i class="dot"></i><span>connecting…</span></span></div>
+    <div class="grid g3">
+      <div class="stat ok" id="s-allow"><b>0</b><span>Allowed</span></div>
+      <div class="stat warn" id="s-hold"><b>0</b><span>Held for a person</span></div>
+      <div class="stat bad" id="s-deny"><b>0</b><span>Blocked</span></div>
+    </div>
+    <div class="bar" id="bar"><i class="a"></i><i class="e"></i><i class="d"></i></div>
+    <div class="legend"><span id="l-wait">0 waiting for approval</span><span id="l-frozen">0 frozen accounts</span><span id="l-model">risk model: checking</span></div>
+  </div>
+</section>
+
+<div id="modelnote"></div>
+
+<h2>Get going in three steps</h2>
+<div class="grid g3">
+  <a class="step" href="/enroll" id="st1"><div class="n">1</div><h3>Add your passkey</h3><p>Register this Mac (password or Touch ID) or your phone. Approvals are signed with it, so nobody can approve in your name.</p><div class="go">Add device →</div></a>
+  <a class="step" href="/approve" id="st2"><div class="n">2</div><h3>Approve or deny</h3><p>See who wants to do what, and why it was held. One click and your passkey decide it. The requester simply retries.</p><div class="go">Open approvals →</div></a>
+  <a class="step" href="/limits" id="st3"><div class="n">3</div><h3>Set team limits</h3><p>Choose how much each team can read in a day, and see the worst a single stolen account could take.</p><div class="go">Open limits →</div></a>
+</div>
+
+<h2>What the engine decides</h2>
+<div class="grid g3">
+  <div class="card flat verdict ok"><div class="ic">✓</div><div><h3>Allowed</h3><p>Everyday work within the person's role and limits. No one is interrupted.</p></div></div>
+  <div class="card flat verdict warn"><div class="ic">⏸</div><div><h3>Held</h3><p>Unusual or large actions, such as exporting 500 customer records, wait for an approver.</p></div></div>
+  <div class="card flat verdict bad"><div class="ic">✕</div><div><h3>Blocked</h3><p>Things the policy never allows, such as reading the production database password.</p></div></div>
+</div>
+
+<section class="upgrade" id="upgrade">
+  <p class="eyebrow" id="up-eyebrow">You are on Community (free)</p>
+  <h2>Interrupt people only when it matters</h2>
+  <p>Community gives you the full decision engine, passkey approvals and a signed audit log, free. Paid plans add a ready-made risk model, so normal work flows on its own and only the truly unusual reaches a person, plus the tools to tune it on your own logs and roll it out across a company.</p>
+  <div class="plans">
+    <div class="plan">
+      <h3>Community <span class="chip">Free · you are here</span></h3>
+      <ul>
+        <li>Decision engine with allow, hold and block</li>
+        <li>Passkey approvals and device enrolment</li>
+        <li>Team limits and the one-account damage ceiling</li>
+        <li>Signed, tamper-evident audit log</li>
+        <li>Single sign-on (OIDC) and SIEM export</li>
+        <li class="lock">Ready-made risk model (or train your own with <span class="mono">authority train</span>)</li>
+        <li class="lock">Automatic team sync from Okta, Entra ID or Google</li>
+      </ul>
+    </div>
+    <div class="plan hi">
+      <h3>Team, Business and Scale <span class="chip gold">Most popular</span></h3>
+      <ul>
+        <li>Everything in Community</li>
+        <li>Ready-made risk model <small>Fewer interruptions from day one: routine work is allowed automatically. <a href="/lab">Try it in the lab.</a></small></li>
+        <li>SCIM sync <small>Teams and members follow Okta, Entra ID, OneLogin, JumpCloud or Google.</small></li>
+        <li>Shadow mode and log connectors <small>Replay a month of real logs and see what would have been held, before you enforce anything.</small></li>
+        <li>Leak watermarking <small>Every export carries the mark of who asked for it.</small></li>
+        <li>Third-party script firewall, priority support</li>
+      </ul>
+      <div class="row"><a class="btn primary" href="https://www.mastyf.ai/authority#pricing" target="_blank" rel="noopener">See plans and pricing</a><a class="btn ghost" href="/lab">Try the model in the lab</a></div>
+    </div>
+  </div>
+</section>
+</main>
+<footer id="foot"></footer>
+</body></html>

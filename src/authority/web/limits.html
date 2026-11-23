@@ -1,13 +1,22 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mastyf Team Limits</title><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
-<body data-page="limits"><main>
-<h1>Team limits</h1>
-<p class="sub">Each team's daily limits, who is in it (from your identity provider), and the worst a single stolen account could take. Try a number to see the worst case move.</p>
-<div class="card" id="keycard"><label for="apikey">Admin API key</label><input id="apikey" type="password" autocomplete="off">
-<div class="row"><button class="primary" id="load">Load teams</button></div><div class="msg" id="keymsg"></div></div>
-<h2>Worst case today, one stolen account</h2><div id="ceiling"><p class="empty">Not loaded.</p></div>
-<h2>Teams</h2><div id="teams"><p class="empty">Not loaded.</p></div>
-<div class="card"><p class="empty">Previews change nothing. To apply, edit the team in the policy file, or run
+<title>Team limits · Mastyf Authority</title><link rel="icon" href="/web/mark.png"><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
+<body data-page="limits"><header class="top" id="top"></header>
+<main>
+<p class="eyebrow">Team limits · admin</p>
+<h1>How much could one stolen account take?</h1>
+<p class="sub">Each team's daily limits, who is in it, and the worst a single stolen account could take today. Drag a limit to watch the worst case move. Previews change nothing.</p>
+<div id="signin"></div>
+
+<div id="work" hidden>
+<h2>Worst case today, one stolen account</h2>
+<div id="ceiling"></div>
+<h2>Teams</h2>
+<div id="teams"></div>
+<div class="card"><p class="empty">To apply a limit, edit the team in the policy file, or run
 <span class="mono">authority learn --teams</span> to propose limits from a month of real activity. Raising a limit is a reviewed change.</p></div>
-</main></body></html>
+</div>
+<div id="nudge"></div>
+</main>
+<footer id="foot"></footer>
+</body></html>

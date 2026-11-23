@@ -1,14 +1,26 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mastyf Devices</title><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
-<body data-page="enroll"><main>
-<h1>Your devices</h1>
-<p class="sub">Data keys are only released to devices registered here. Adding one needs a device you already have, or two approvers.</p>
-<div class="card"><label for="apikey">Your API key</label><input id="apikey" type="password" autocomplete="off">
-<div class="row"><button class="primary" id="load">Show my devices</button></div><div class="msg" id="keymsg"></div></div>
-<div id="list"></div>
-<div class="card" id="add" hidden>
-<label for="devname">Name for this device</label><input id="devname" placeholder="e.g. work-laptop" maxlength="64">
-<div class="row"><button class="primary" id="begin">Add this device</button></div>
-<div id="step"></div><div class="msg" id="addmsg"></div></div>
-</main></body></html>
+<title>Devices · Mastyf Authority</title><link rel="icon" href="/web/mark.png"><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
+<body data-page="enroll"><header class="top" id="top"></header>
+<main class="narrow">
+<p class="eyebrow">Devices</p>
+<h1>Your passkeys</h1>
+<p class="sub">Your passkey is how you approve requests and receive data keys. It can be this Mac (your login password or Touch ID), a phone or a security key. The private key never leaves the device.</p>
+<div id="signin"></div>
+
+<div id="work" hidden>
+<h2>Registered devices</h2>
+<div class="card" id="list"></div>
+
+<h2>Add a device</h2>
+<div class="card" id="add">
+<ol class="steps" id="steps"><li class="on">Name it</li><li>Get it approved</li><li>Confirm with your passkey</li></ol>
+<label for="devname">Name for this device</label>
+<div class="row tight"><input id="devname" placeholder="e.g. work-mac" maxlength="64"><button class="primary" id="begin">Add this device</button></div>
+<div id="step"></div><div class="msg" id="addmsg"></div>
+</div>
+</div>
+<div id="nudge"></div>
+</main>
+<footer id="foot"></footer>
+</body></html>

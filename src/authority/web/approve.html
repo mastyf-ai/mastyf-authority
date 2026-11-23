@@ -1,18 +1,30 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Mastyf Approvals</title><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
-<body data-page="approve"><main>
-<h1>Approvals</h1>
-<p class="sub">Requests waiting for a second person. Approving signs the exact request with your passkey; nobody else can approve in your name.</p>
-<div class="card" id="keycard"><label for="apikey">Your API key</label><input id="apikey" type="password" autocomplete="off">
-<div class="row"><button class="primary" id="load">Load requests</button></div><div class="msg" id="keymsg"></div></div>
-<h2>Actions</h2><div id="actions"><p class="empty">Not loaded.</p></div>
-<h2>New devices</h2><div id="devices"><p class="empty">Not loaded.</p></div>
-<h2>Sign a change, overrun or unfreeze</h2>
-<div class="card"><p class="empty">For requests checked by the key service or change gates. Paste the details from the request; your passkey signs exactly these values. Give the result back to the requester.</p>
+<title>Approvals · Mastyf Authority</title><link rel="icon" href="/web/mark.png"><link rel="stylesheet" href="/web/app.css"><script src="/web/app.js" defer></script></head>
+<body data-page="approve"><header class="top" id="top"></header>
+<main class="narrow">
+<p class="eyebrow">Approvals</p>
+<h1>Requests waiting for you</h1>
+<p class="sub">When someone tries something risky, it waits here. Approving signs that exact request with your passkey, so nobody else can approve in your name.</p>
+<div id="signin"></div>
+
+<div id="work" hidden>
+<h2>Actions <span class="livebadge"><i class="dot on"></i>live</span></h2>
+<div id="actions"></div>
+<h2>New devices</h2>
+<div id="devices"></div>
+
+<details class="block">
+<summary>Sign a change, overrun or unfreeze</summary>
+<p class="empty">For requests checked by the key service or change gates. Paste the details from the request; your passkey signs exactly these values. Give the result back to the requester.</p>
 <label for="kind">Request type</label><select id="kind"><option value="gate">Change gate (publish, history rewrite, backup delete)</option><option value="overrun">Budget overrun</option><option value="unfreeze">Unfreeze an identity</option></select>
 <label for="f1" id="l1">Grant id</label><input id="f1" autocomplete="off">
 <label for="f2" id="l2">Action fingerprint</label><input id="f2" autocomplete="off">
 <div class="row"><button class="primary" id="signit">Sign with passkey</button></div>
-<div class="msg" id="signmsg"></div><div class="mono" id="signout"></div></div>
-</main></body></html>
+<div class="msg" id="signmsg"></div><div class="mono" id="signout"></div>
+</details>
+</div>
+<div id="nudge"></div>
+</main>
+<footer id="foot"></footer>
+</body></html>
