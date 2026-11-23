@@ -5,22 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy · Mastyf Authority for GitHub</title>
 <link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Serif:wght@600&display=swap" rel="stylesheet">
 <style>
-:root{color-scheme:dark;--bg:#0a0a0b;--card:#111113;--line:#222225;--ink:#ededea;--ink-strong:#f7f7f3;--mute:#a3a39b;--accent:#e3b453}
+:root{--bg:#fbfaf7;--ink:#1b1b19;--ink-2:#4a4a45;--mute:#76766f;--rule:#e6e3db;--gold:#9a6b12;--code-bg:#f4f2ec}
+@media (prefers-color-scheme:dark){:root{--bg:#121211;--ink:#ecebe6;--ink-2:#c4c3bc;--mute:#94938b;--rule:#2b2b28;--gold:#e0b15a;--code-bg:#1f1f1c}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 "IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:760px;margin:0 auto;padding:48px 16px 80px}
-a{color:var(--accent)}
-.brand{display:flex;align-items:center;gap:10px;color:var(--ink-strong);font-weight:700;margin-bottom:36px;text-decoration:none}
-.brand img{width:32px;height:32px;border-radius:8px}
-h1{font:700 clamp(30px,3vw + 14px,42px)/1.1 ui-sans-serif,system-ui,sans-serif;letter-spacing:-.03em;color:var(--ink-strong);margin:0 0 8px}
-h2{font-size:20px;color:var(--ink-strong);margin:36px 0 8px}
-p,li{color:var(--mute)}
-.updated{color:var(--mute);font-size:14px;margin-bottom:28px}
-table{width:100%;border-collapse:collapse;font-size:15px;margin:8px 0}
-th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-th{color:var(--ink-strong)}
-code{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:14px}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.7 "IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,sans-serif}
+main{max-width:720px;margin:0 auto;padding:40px 20px 80px}
+a{color:var(--gold);text-underline-offset:3px}
+.brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink);font-weight:600;text-decoration:none;margin-bottom:40px}
+.brand img{width:28px;height:28px;border-radius:6px}
+h1{font:600 36px/1.15 "IBM Plex Serif",Georgia,serif;margin:0 0 6px}
+h2{font:600 21px/1.3 "IBM Plex Serif",Georgia,serif;margin:36px 0 8px}
+p,li{color:var(--ink-2)}
+.updated{color:var(--mute);font-size:15px;margin:0 0 28px}
+code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
 </style>
 </head>
 <body>
@@ -29,46 +29,35 @@ code{background:var(--card);border:1px solid var(--line);border-radius:6px;paddi
 <h1>Privacy policy</h1>
 <p class="updated">Last updated 24 November 2026 · Mastyf Labs (Rudraneel Das)</p>
 
-<p>Mastyf Authority for GitHub ("the app") is a GitHub App that watches risky events in the organisations and
-accounts that install it, judges them the way Mastyf Authority would, and posts a weekly report. It runs in shadow
-mode: it never blocks, changes or reverts anything on GitHub. This page explains exactly what it receives, keeps and
-shares.</p>
+<p>Mastyf Authority for GitHub is a GitHub Action: a workflow you add to one of your own repositories. It runs on
+GitHub's runners, inside your GitHub account. <strong>Mastyf Labs receives no data from it:</strong> no events, no
+reports, no telemetry and no tokens.</p>
 
-<h2>What the app receives</h2>
-<p>GitHub sends the app webhook events for the repositories you let it see: pushes, branch deletions, repositories
-deleted, made public or transferred, collaborators and owners added, deploy keys added, and branch protection or
-rulesets removed or changed. GitHub also tells the app when it is installed or uninstalled.</p>
+<h2>What the workflow reads</h2>
+<p>Through GitHub's API, with the token you give it: the activity log of each repository it can see (pushes,
+force-pushes and branch deletions, with who and when), and repository and organisation settings (visibility, branch
+protection, rulesets, deploy keys, admins and owners). It does not read code, diffs, commit messages or file names.</p>
 
-<h2>What the app keeps</h2>
-<table>
-<tr><th>Kept</th><th>For how long</th></tr>
-<tr><td>The kind of event and when it happened</td><td>90 days</td></tr>
-<tr><td>The GitHub account that acted, the repository and the branch</td><td>90 days</td></tr>
-<tr><td>Authority's verdict and its reasons</td><td>90 days</td></tr>
-<tr><td>The organisation or account name, the installation id, and which private repository receives reports</td><td>until you uninstall</td></tr>
-</table>
-<p>The app never fetches or keeps code, diffs, commit messages, file names or issue contents. GitHub requires read
-access to repository contents before it sends push events; the app uses only the event itself.</p>
+<h2>What it keeps, and where</h2>
+<p>Only the weekly report, which it opens as an issue in your repository. To notice changes from one week to the
+next, it stores last week's settings, compressed, in a hidden comment in that issue. Nothing is stored anywhere else.
+Delete the issues and the history is gone.</p>
 
-<h2>Where reports go</h2>
-<p>Weekly reports are posted as an issue in a <strong>private</strong> repository the app can see (preferably one
-named <code>mastyf-reports</code> or <code>.github</code>). If it can see no private repository, it posts nothing.</p>
+<h2>Tokens</h2>
+<p>The workflow uses its own short-lived token, and optionally a read-only organisation token that you store as the
+secret <code>MASTYF_ORG_TOKEN</code>. Both stay in your GitHub; the workflow uses them only to call GitHub's API.</p>
 
-<h2>Who can see your data</h2>
-<p>Only Mastyf Labs, to run the app and to fix problems. We do not sell or share it, do not use it for advertising,
-and do not use it to train models shared with anyone else. The data is stored on infrastructure operated by Mastyf
-Labs.</p>
+<h2>The code</h2>
+<p>Everything the workflow runs is open source and installed from the Action's own source at the version you
+reference: <a href="https://github.com/mastyf-ai/mastyf-authority">github.com/mastyf-ai/mastyf-authority</a>. You can
+read it, or pin the Action to a commit you have reviewed.</p>
 
-<h2>Deleting your data</h2>
-<p>Uninstall the app in your organisation's or account's settings under <em>GitHub Apps</em>. When GitHub tells the
-app it was uninstalled, everything it kept about that installation is deleted immediately. You can also ask us to
-delete it at any time.</p>
+<h2>This website</h2>
+<p>This page is hosted on GitHub Pages and loads fonts from Google Fonts. We run no analytics or tracking on it.</p>
 
 <h2>Contact</h2>
-<p>Questions or deletion requests: open an issue at
-<a href="https://github.com/mastyf-ai/mastyf-authority/issues">github.com/mastyf-ai/mastyf-authority/issues</a>
-(for anything sensitive, use <a href="https://github.com/mastyf-ai/mastyf-authority/security/advisories/new">a private
-report</a>).</p>
+<p>Questions: <a href="https://github.com/mastyf-ai/mastyf-authority/issues">open an issue</a>. Anything sensitive:
+<a href="https://github.com/mastyf-ai/mastyf-authority/security/advisories/new">a private report</a>.</p>
 </main>
 </body>
 </html>
