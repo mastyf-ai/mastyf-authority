@@ -142,7 +142,18 @@ function signin(onLoad, what) {
   };
   const attempt = async () => {
     go.disabled = true;
-    try { done(await onLoad()); } catch (e) { host.replaceChildren(form); work.hidden = true; say(msg, e.message === "unauthorized" ? "That key was not accepted." : e.message, false); }
+    try { done(await onLoad()); } catch (e) {
+      work.hidden = true;
+      if (/turned off/.test(e.message)) {  // the engine runs without the lab (AUTHORITY_LAB=0): not a key problem
+        host.replaceChildren(el("div", { class: "callout" }, el("span", { class: "ic" }, "i"), el("p", {},
+          el("strong", {}, "The risk model lab is switched off on this engine. "),
+          "Your key is fine. This engine runs with AUTHORITY_LAB=0, usually because it guards something real. ",
+          "Open the lab on a test engine instead, for example one started with ", el("span", { class: "mono" }, "authority local"), ".")));
+      } else {
+        host.replaceChildren(form);
+        say(msg, e.message === "unauthorized" ? "That key was not accepted." : e.message, false);
+      }
+    }
     go.disabled = false;
   };
   go.addEventListener("click", () => { KEY = input.value.trim(); SS.set("mastyf-key", KEY); attempt(); });
