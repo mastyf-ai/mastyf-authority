@@ -19,7 +19,7 @@ jobs:
       - name: Build provenance (SLSA) for the wheel and sdist
         uses: actions/attest-build-provenance@v2
         with: { subject-path: "dist/*.whl, dist/*.tar.gz" }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: { name: dist, path: dist/ }
   images:
     runs-on: ubuntu-latest
