@@ -17,6 +17,7 @@ import hashlib
 import http.client
 import json
 import secrets
+import shlex
 import socket
 import ssl
 import subprocess
@@ -38,7 +39,8 @@ IDS = {"alice": "human:alice", "dana": "human:dana", "admin": "admin", "replica"
 
 
 def sh(cmd: str, check=True, capture=True, timeout=1800) -> str:
-    r = subprocess.run(cmd, shell=True, capture_output=capture, text=True, timeout=timeout)
+    # no shell: the command is split into arguments, so nothing in it can start another command
+    r = subprocess.run(shlex.split(cmd), capture_output=capture, text=True, timeout=timeout)
     if check and r.returncode != 0:
         raise RuntimeError(f"{cmd}\n{r.stdout}\n{r.stderr}")
     return (r.stdout or "").strip()
@@ -169,7 +171,7 @@ def main() -> None:
         (tmp / "kind.yaml").write_text("kind: Cluster\napiVersion: kind.x-k8s.io/v1alpha4\n"
                                        "nodes: [{role: control-plane}, {role: worker}, {role: worker}]\n")
         sh(f"kind create cluster --name {CLUSTER} --config {tmp / 'kind.yaml'} --wait 180s", timeout=900)
-    step("cluster", nodes=sh(f"kubectl --context kind-{CLUSTER} get nodes --no-headers | wc -l").strip())
+    step("cluster", nodes=len(sh(f"kubectl --context kind-{CLUSTER} get nodes --no-headers").splitlines()))
     for name, f in (("authority", "Dockerfile.authority"), ("keyservice", "Dockerfile.keyservice"),
                     ("gateway", "Dockerfile.gateway")):
         img = f"{REG}/mastyf-authority-{name}:{TAG}"
@@ -197,8 +199,8 @@ def main() -> None:
          5, "engines up (one active, one standby)")
     wait(lambda: "1/1" in kc(f"get pods -l app.kubernetes.io/component=gateway --no-headers"), 300, 3, "gateway")
     step("installed", seconds=round(time.time() - t0))
-    pf = subprocess.Popen(f"kubectl --context kind-{CLUSTER} -n {NS} port-forward svc/{REL}-gateway 18443:8443",
-                          shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    pf = subprocess.Popen(["kubectl", "--context", f"kind-{CLUSTER}", "-n", NS, "port-forward", f"svc/{REL}-gateway",
+                           "18443:8443"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         gw = GW(18443, info["gw_ca"])
         wait(lambda: gw.call("GET", "/healthz")[0] == 200, 60, 1, "port-forward")

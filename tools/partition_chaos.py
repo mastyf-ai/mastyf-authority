@@ -137,8 +137,9 @@ def main() -> None:
     # gateway upstreams = the proxies
     import subprocess
     start("a")
+    # reviewed: an argument list (no shell) of paths and ports this harness made itself
     c.procs["gw"] = subprocess.Popen(
-        [str(BIN / "mastyf-gateway"), "--listen", f"127.0.0.1:{c.pg}", "--tls-cert", c.cert, "--tls-key", c.tkey,
+        [str(BIN / "mastyf-gateway"), "--listen", f"127.0.0.1:{c.pg}", "--tls-cert", c.cert, "--tls-key", c.tkey,  # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args
          "--callers", str(c.tmp / "callers.json"), *sum((["--upstream", f"127.0.0.1:{prox[n].port}"] for n in names), []),
          "--promote-key-file", str(c.tmp / "promote.key"), "--hold-ms", str(a.hold_ms),
          "--failover-after", "2", "--rate", "100000", "--burst", "100000"], stderr=open(c.tmp / "gw.log", "ab"))
