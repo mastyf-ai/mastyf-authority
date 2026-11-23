@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mastyf Authority for GitHub</title>
+<meta name="description" content="A free GitHub App that shows, every week, which risky actions in your organisation would have needed a second person's approval. Shadow mode: blocks nothing, never reads code.">
+<meta property="og:title" content="Mastyf Authority for GitHub">
+<meta property="og:description" content="Which GitHub actions should have needed a second person? A free weekly report. Blocks nothing, never reads code.">
+<meta property="og:image" content="https://mastyf-ai.github.io/mastyf-authority/github-app/logo.png">
+<link rel="icon" href="logo.png">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0a0a0b;--sunken:#070708;--card:#111113;--raised:#18181b;--hover:#1f1f23;--line:#222225;--line-2:#303035;
+  --ink:#ededea;--ink-strong:#f7f7f3;--mute:#a3a39b;--faint:#74746d;
+  --accent:#e3b453;--accent-hover:#efc56f;--accent-ink:#0a0a0b;--accent-soft:rgba(227,180,83,.12);--accent-line:rgba(227,180,83,.4);
+  --ok:#7fd28e;--ok-soft:rgba(127,210,142,.12);--ok-line:rgba(127,210,142,.38);
+  --warn:#ee9150;--warn-soft:rgba(238,145,80,.12);--warn-line:rgba(238,145,80,.38);
+  --bad:#ef6b5b;--bad-soft:rgba(239,107,91,.12);--bad-line:rgba(239,107,91,.4);
+  --info:#7cb4d8;--info-soft:rgba(124,180,216,.12);
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0 0 auto 0;height:640px;pointer-events:none;z-index:0;
+  background:radial-gradient(55% 90% at 80% 0%,rgba(227,180,83,.11),transparent 70%),radial-gradient(40% 70% at 0% 10%,rgba(124,180,216,.06),transparent 70%)}
+a{color:var(--accent);text-decoration:none}a:hover{color:var(--accent-hover)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.wrap{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:0 16px}
+header.top{position:sticky;top:0;z-index:20;background:rgba(10,10,11,.8);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:16px;padding-top:10px;padding-bottom:10px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--ink-strong);font:700 17px/1.1 var(--display);letter-spacing:-.02em}
+.brand img{width:34px;height:34px;border-radius:8px}
+.brand small{display:block;font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-top:4px}
+.top nav{display:flex;gap:4px;margin-left:auto}
+.top nav a{color:var(--mute);font-size:14px;padding:7px 10px;border-radius:8px}
+.top nav a:hover{color:var(--ink);background:var(--raised)}
+@media (max-width:760px){.top nav{display:none}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;font:600 15px/1 var(--sans);padding:13px 18px;border-radius:10px;border:1px solid var(--line-2);background:var(--raised);color:var(--ink);cursor:pointer;transition:background .15s,transform .05s,border-color .15s;white-space:nowrap}
+.btn:hover{background:var(--hover);color:var(--ink);border-color:var(--faint)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover);color:var(--accent-ink)}
+.btn.sm{padding:9px 13px;font-size:14px}
+.btn svg{width:18px;height:18px;flex:none}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin:0 0 14px}
+h1{font:750 clamp(36px,4.4vw + 12px,64px)/1.02 var(--display);letter-spacing:-.04em;margin:0 0 18px;color:var(--ink-strong)}
+h1 em{font-style:normal;color:var(--accent)}
+h2{font:700 clamp(28px,2vw + 16px,40px)/1.08 var(--display);letter-spacing:-.03em;margin:0 0 12px;color:var(--ink-strong)}
+h3{font:600 17px/1.3 var(--sans);margin:0 0 6px;color:var(--ink-strong)}
+.lead{font-size:19px;color:var(--mute);max-width:60ch;margin:0 0 26px}
+section{padding:72px 0}
+.sec-head{max-width:680px;margin-bottom:34px}
+.sec-head p{color:var(--mute);margin:0;font-size:17px}
+.hero{padding:80px 0 56px;display:grid;grid-template-columns:1.15fr .85fr;gap:48px;align-items:center}
+@media (max-width:920px){.hero{grid-template-columns:1fr;padding-top:48px}}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 0}
+.badge{display:inline-flex;align-items:center;gap:7px;font:500 13px/1 var(--sans);padding:8px 11px;border-radius:99px;border:1px solid var(--line-2);color:var(--mute);background:rgba(17,17,19,.6)}
+.badge i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.hero-card{border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,rgba(227,180,83,.06),transparent 55%),var(--card);padding:22px;box-shadow:0 30px 60px rgba(0,0,0,.45)}
+.feed{display:grid;gap:10px}
+.feed-item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--sunken);opacity:0;transform:translateY(8px);animation:rise .5s ease forwards}
+.feed-item:nth-child(2){animation-delay:.6s}.feed-item:nth-child(3){animation-delay:1.2s}.feed-item:nth-child(4){animation-delay:1.8s}
+@keyframes rise{to{opacity:1;transform:none}}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:700 13px/1 var(--display);color:var(--accent-ink);background:var(--accent)}
+.av.b{background:var(--info)}.av.c{background:#b9a3e3}.av.d{background:var(--ok)}
+.feed-item p{margin:0;font-size:14px;color:var(--ink)}
+.feed-item small{display:block;color:var(--faint);font:12px var(--mono)}
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--mono);padding:6px 8px;border-radius:7px;white-space:nowrap}
+.pill.ok{color:var(--ok);background:var(--ok-soft)}.pill.warn{color:var(--warn);background:var(--warn-soft)}.pill.bad{color:var(--bad);background:var(--bad-soft)}
+.hero-card .cap{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;font:500 11.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.live{display:inline-flex;align-items:center;gap:7px}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 2.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(127,210,142,.55)}70%{box-shadow:0 0 0 8px rgba(127,210,142,0)}100%{box-shadow:0 0 0 0 rgba(127,210,142,0)}}
+/* simulator */
+.sim{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:18px;align-items:start}
+@media (max-width:920px){.sim{grid-template-columns:1fr}}
+.events{display:grid;gap:8px}
+.ev{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:center;text-align:left;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;cursor:pointer;transition:border-color .15s,background .15s,transform .15s}
+.ev:hover{border-color:var(--line-2);background:var(--raised);transform:translateX(2px)}
+.ev[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft)}
+.ev .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--raised);border:1px solid var(--line-2);color:var(--mute)}
+.ev .ic svg{width:18px;height:18px}
+.ev b{display:block;font-size:14.5px;color:var(--ink-strong)}
+.ev .ttl{font-family:var(--sans);min-width:0}
+.ev small{display:block;font-size:12.5px;color:var(--faint);font-family:var(--mono)}
+.stage{border:1px solid var(--line);border-radius:20px;background:var(--card);padding:24px;min-height:420px;position:relative;overflow:hidden}
+.flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:10px;align-items:stretch;margin-bottom:20px}
+@media (max-width:620px){.flow{grid-template-columns:1fr}.flow .arrow{transform:rotate(90deg);justify-self:center}}
+.node{border:1px solid var(--line-2);border-radius:12px;padding:12px;background:var(--sunken);opacity:.35;transition:opacity .35s,border-color .35s,box-shadow .35s}
+.node.on{opacity:1;border-color:var(--accent-line);box-shadow:0 0 0 3px var(--accent-soft)}
+.node h4{margin:0 0 6px;font:500 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.node code{display:block;font:12px/1.55 var(--mono);color:var(--info);white-space:pre-line;overflow-wrap:anywhere}
+.arrow{align-self:center;color:var(--faint);font-size:20px;transition:color .3s}
+.arrow.on{color:var(--accent)}
+.verdict{display:none;animation:rise .45s ease forwards;opacity:0}
+.verdict.show{display:block}
+.vbig{display:inline-flex;align-items:center;gap:10px;font:750 26px/1 var(--display);letter-spacing:-.02em;padding:12px 16px;border-radius:14px;margin-bottom:14px}
+.vbig.ok{color:var(--ok);background:var(--ok-soft);border:1px solid var(--ok-line)}
+.vbig.warn{color:var(--warn);background:var(--warn-soft);border:1px solid var(--warn-line)}
+.vbig.bad{color:var(--bad);background:var(--bad-soft);border:1px solid var(--bad-line)}
+.verdict p{margin:0 0 10px;color:var(--ink)}
+.verdict .why{color:var(--mute);font-size:14.5px}
+.enforce{margin-top:16px;padding:14px 16px;border-radius:12px;border:1px dashed var(--line-2);color:var(--mute);font-size:14.5px}
+.enforce b{color:var(--ink)}
+.hint{color:var(--faint);font-size:14px;text-align:center;margin-top:90px}
+.hint svg{width:36px;height:36px;display:block;margin:0 auto 10px;opacity:.6}
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;counter-reset:s}
+@media (max-width:820px){.steps{grid-template-columns:1fr}}
+.step{position:relative;padding:24px;border:1px solid var(--line);border-radius:18px;background:var(--card)}
+.step::before{counter-increment:s;content:counter(s);width:36px;height:36px;border-radius:50%;display:grid;place-items:center;margin-bottom:16px;font:600 14px/1 var(--mono);color:var(--accent);border:1px solid var(--accent-line);background:var(--accent-soft)}
+.step p{margin:0;color:var(--mute);font-size:15px}
+.step .t{font:500 12px var(--mono);color:var(--faint);margin-top:12px}
+/* sample issue */
+.issue{border:1px solid #30363d;border-radius:12px;background:#0d1117;color:#e6edf3;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;overflow:hidden;box-shadow:0 30px 60px rgba(0,0,0,.5)}
+.issue-head{padding:18px 22px;border-bottom:1px solid #30363d}
+.issue-head .t{font-size:22px;font-weight:400;margin:0 0 8px}
+.issue-head .t span{color:#7d8590}
+.state{display:inline-flex;align-items:center;gap:6px;background:#238636;color:#fff;border-radius:99px;padding:5px 12px;font-weight:500;font-size:14px;margin-right:8px}
+.issue-head small{color:#7d8590}
+.issue-body{display:grid;grid-template-columns:40px 1fr;gap:14px;padding:18px 22px}
+.issue-body img{width:40px;height:40px;border-radius:8px}
+.comment{border:1px solid #30363d;border-radius:8px;overflow:hidden}
+.comment-h{background:#161b22;border-bottom:1px solid #30363d;padding:9px 14px;color:#7d8590;font-size:13px}
+.comment-h b{color:#e6edf3}
+.comment-h .bot{border:1px solid #30363d;border-radius:99px;padding:0 6px;font-size:11px;margin-left:4px}
+.md{padding:14px 18px}
+.md h4{font-size:18px;margin:4px 0 10px;padding-bottom:6px;border-bottom:1px solid #30363d}
+.md h5{font-size:15px;margin:16px 0 8px}
+.md table{border-collapse:collapse;width:100%;font-size:13.5px;margin:0 0 6px;display:block;overflow-x:auto}
+.md th,.md td{border:1px solid #30363d;padding:6px 12px;text-align:left}
+.md tr:nth-child(2n) td{background:#161b22}
+.md code{background:rgba(110,118,129,.4);border-radius:6px;padding:.1em .4em;font:12.5px var(--mono)}
+.md p{margin:0 0 10px;color:#e6edf3}
+.md sub{color:#7d8590}
+/* privacy */
+.perm{width:100%;border-collapse:collapse;font-size:15px}
+.perm th{text-align:left;font:500 11.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:10px 12px;border-bottom:1px solid var(--line)}
+.perm td{padding:14px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.perm td:first-child{white-space:nowrap;font-weight:600;color:var(--ink-strong)}
+.lvl{font:600 12px var(--mono);padding:4px 7px;border-radius:6px;background:var(--raised);color:var(--mute);white-space:nowrap}
+.lvl.w{color:var(--accent);background:var(--accent-soft)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+.box{border:1px solid var(--line);border-radius:16px;background:var(--card);padding:22px}
+.box ul{margin:8px 0 0;padding-left:18px;color:var(--mute)}
+.box li{margin:6px 0}
+.box.yes{border-color:var(--ok-line)}.box.no{border-color:var(--bad-line)}
+/* faq */
+details{border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:10px;overflow:hidden}
+summary{cursor:pointer;list-style:none;padding:18px 20px;font-weight:600;color:var(--ink-strong);display:flex;justify-content:space-between;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--accent);font:500 22px/1 var(--mono);transition:transform .2s}
+details[open] summary::after{transform:rotate(45deg)}
+details p{margin:0;padding:0 20px 18px;color:var(--mute)}
+/* cta */
+.cta{text-align:center;border:1px solid var(--accent-line);border-radius:24px;padding:56px 24px;background:radial-gradient(70% 120% at 50% 0%,rgba(227,180,83,.15),transparent 65%),var(--card)}
+.cta p{color:var(--mute);max-width:560px;margin:0 auto 24px}
+footer{position:relative;z-index:1;border-top:1px solid var(--line);color:var(--faint);font-size:14px}
+footer .wrap{display:flex;gap:18px;flex-wrap:wrap;align-items:center;padding-top:22px;padding-bottom:22px}
+footer a{color:var(--mute)}
+footer img{width:22px;height:22px;border-radius:6px}
+.spacer{flex:1}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.feed-item,.verdict.show{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="gh" viewBox="0 0 16 16"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></symbol>
+  <symbol id="i-rewrite" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zM15.5 7.5l3 3L22 7l-3-3"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM4 4l16 16"/></symbol>
+  <symbol id="i-push" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M5 12l7-7 7 7"/></symbol>
+  <symbol id="i-pointer" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M9 11V5a2 2 0 1 1 4 0v5m0-1a2 2 0 1 1 4 0v2m0-1a2 2 0 1 1 4 0v4a7 7 0 0 1-7 7h-1a7 7 0 0 1-6-3l-3-5a2 2 0 0 1 3-2l2 2"/></symbol>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="logo.png" alt=""><span>Mastyf Authority<small>for GitHub</small></span></a>
+    <nav aria-label="Page"><a href="#try">Try it</a><a href="#how">How it works</a><a href="#report">Report</a><a href="#privacy">Privacy</a><a href="#faq">FAQ</a></nav>
+    <a class="btn primary sm install" href="https://github.com/apps/mastyf-authority/installations/new"><svg><use href="#gh"/></svg>Install free</a>
+  </div>
+</header>
+
+<main class="wrap">
+<section class="hero">
+  <div>
+    <p class="eyebrow">Free GitHub App · shadow mode</p>
+    <h1>Which GitHub actions should have needed <em>a second person?</em></h1>
+    <p class="lead">Install it on your organisation, then keep working as usual. Every risky event (a force-push to <code>main</code>, a repository made public, a new owner) is judged the way Mastyf Authority would. Once a week you get a short report. Nothing is ever blocked.</p>
+    <div class="row">
+      <a class="btn primary install" href="https://github.com/apps/mastyf-authority/installations/new"><svg><use href="#gh"/></svg>Install on GitHub, free</a>
+      <a class="btn" href="#try">Try it here first</a>
+    </div>
+    <div class="badges">
+      <span class="badge"><i></i>Blocks nothing</span>
+      <span class="badge"><i></i>Never reads your code</span>
+      <span class="badge"><i></i>Reports stay in a private repo</span>
+      <span class="badge"><i></i>Uninstall deletes everything</span>
+    </div>
+  </div>
+  <div class="hero-card" aria-label="Example of events being judged">
+    <div class="cap"><span>Example · acme-corp this week</span><span class="live"><i></i>watching</span></div>
+    <div class="feed">
+      <div class="feed-item"><span class="av">M</span><p>force-pushed to <code>main</code> in <b>payments-api</b><small>Tue 02:14 UTC</small></p><span class="pill bad">Refused</span></div>
+      <div class="feed-item"><span class="av b">J</span><p>made <b>infra-secrets</b> public<small>Wed 18:40 UTC</small></p><span class="pill warn">Held</span></div>
+      <div class="feed-item"><span class="av c">P</span><p>pushed 4 commits to <code>feature/login</code><small>Thu 10:02 UTC</small></p><span class="pill ok">Allowed</span></div>
+      <div class="feed-item"><span class="av d">S</span><p>removed branch protection on <code>main</code><small>Fri 23:51 UTC</small></p><span class="pill warn">Held</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="try">
+  <div class="sec-head">
+    <p class="eyebrow">Try it</p>
+    <h2>Click an event. See what Authority decides.</h2>
+    <p>These are the events the app watches. Each one becomes an action that Authority judges by your policy, by what is normal for that person, and by a risk model.</p>
+  </div>
+  <div class="sim">
+    <div class="events" id="events" role="group" aria-label="GitHub events"></div>
+    <div class="stage" id="stage" aria-live="polite">
+      <div class="hint" id="hint"><svg><use href="#i-pointer"/></svg>Pick an event on the left</div>
+      <div id="out" hidden>
+        <div class="flow">
+          <div class="node" id="n1"><h4>GitHub sends</h4><code id="c1"></code></div>
+          <div class="arrow" id="a1">→</div>
+          <div class="node" id="n2"><h4>Authority sees</h4><code id="c2"></code></div>
+          <div class="arrow" id="a2">→</div>
+          <div class="node" id="n3"><h4>Checks</h4><code id="c3"></code></div>
+        </div>
+        <div class="verdict" id="verdict">
+          <div class="vbig" id="vbig"></div>
+          <p id="vwhat"></p>
+          <p class="why" id="vwhy"></p>
+          <div class="enforce" id="venf"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="sec-head">
+    <p class="eyebrow">How it works</p>
+    <h2>One click to install. Nothing else to do.</h2>
+  </div>
+  <div class="steps">
+    <div class="step"><h3>Install the app</h3><p>Choose your organisation and which repositories it may see. Add a private repository named <code>mastyf-reports</code>, so the weekly report has somewhere private to go.</p><div class="t">about 1 minute</div></div>
+    <div class="step"><h3>Work as usual</h3><p>GitHub sends the app your risky events as they happen. Each is judged in shadow mode: nobody is asked, nothing is blocked, nothing slows down.</p><div class="t">no setup, no agents, no YAML</div></div>
+    <div class="step"><h3>Read the weekly report</h3><p>An issue in your private repository: what would have waited for a second person's approval, what would have been refused, and how often your team would have been interrupted.</p><div class="t">every 7 days</div></div>
+  </div>
+</section>
+
+<section id="report">
+  <div class="sec-head">
+    <p class="eyebrow">The weekly report</p>
+    <h2>Short, specific and private</h2>
+    <p>This is what lands in your private repository. Every line names the event, the account and the reason.</p>
+  </div>
+  <div class="issue">
+    <div class="issue-head">
+      <p class="t">Mastyf Authority weekly report: 2 held, 1 refused (7 days) <span>#12</span></p>
+      <span class="state">● Open</span><small>mastyf-authority bot opened this issue · acme-corp/mastyf-reports</small>
+    </div>
+    <div class="issue-body">
+      <img src="logo.png" alt="">
+      <div class="comment">
+        <div class="comment-h"><b>mastyf-authority</b><span class="bot">bot</span> commented</div>
+        <div class="md">
+          <h4>What Authority would have done in <code>acme-corp</code>, last 7 days</h4>
+          <p>Shadow mode: nothing was blocked and nobody was asked.</p>
+          <table><tr><th></th><th></th></tr>
+            <tr><td>Actions checked</td><td><b>214</b> by 23 accounts</td></tr>
+            <tr><td>Would have waited for a second person's approval</td><td><b>2</b></td></tr>
+            <tr><td>Would have been refused outright</td><td><b>1</b></td></tr>
+            <tr><td>Interruptions per working day</td><td>0.4</td></tr></table>
+          <h5>Would have been refused</h5>
+          <table><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Why</th></tr>
+            <tr><td>Tue 24 Nov 02:14</td><td><code>mallory</code></td><td>force-pushed to <code>main</code> in <code>payments-api</code></td><td>history rewrite on a protected branch</td></tr></table>
+          <h5>Would have waited for a second person</h5>
+          <table><tr><th>When (UTC)</th><th>Who</th><th>What</th><th>Why</th></tr>
+            <tr><td>Wed 25 Nov 18:40</td><td><code>jordan</code></td><td>made the private repository <code>infra-secrets</code> public</td><td>data.export always needs approval</td></tr>
+            <tr><td>Fri 27 Nov 23:51</td><td><code>sam</code></td><td>removed branch protection <code>main</code> in <code>web</code></td><td>security.control_change always needs approval</td></tr></table>
+          <p><sub>Example report with made-up names. Mastyf Authority for GitHub keeps only the event kind, account, repository, branch, time and verdict for 90 days, never code.</sub></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="sec-head">
+    <p class="eyebrow">Privacy</p>
+    <h2>What it can see, and why</h2>
+    <p>GitHub asks you to approve each permission when you install. Here is why the app asks for each one.</p>
+  </div>
+  <div class="tablewrap"><table class="perm">
+    <tr><th>Permission</th><th>Level</th><th>Why</th></tr>
+    <tr><td>Metadata</td><td><span class="lvl">read</span></td><td>Repository names and whether they are public or private. Every app has it.</td></tr>
+    <tr><td>Contents</td><td><span class="lvl">read</span></td><td>GitHub sends push events (force-pushes) only to apps with this permission. <b>The app never reads files, diffs or commit messages.</b></td></tr>
+    <tr><td>Administration</td><td><span class="lvl">read</span></td><td>To be told when branch protection or rulesets are removed or changed.</td></tr>
+    <tr><td>Members</td><td><span class="lvl">read</span></td><td>To be told when someone becomes an owner or a collaborator.</td></tr>
+    <tr><td>Deployments</td><td><span class="lvl">read</span></td><td>To be told when a deploy key is added.</td></tr>
+    <tr><td>Issues</td><td><span class="lvl w">write</span></td><td>To post the weekly report, only in a private repository.</td></tr>
+  </table></div>
+  <div class="two">
+    <div class="box yes"><h3>Kept, for 90 days</h3><ul><li>The kind of event, and when it happened</li><li>The account, repository and branch</li><li>Authority's verdict and its reasons</li></ul></div>
+    <div class="box no"><h3>Never kept or read</h3><ul><li>Your code, diffs, commit messages or file names</li><li>Anything at all after you uninstall: the app deletes it immediately</li><li>Reports in public repositories: if you have no private one, nothing is posted</li></ul></div>
+  </div>
+  <p class="row" style="margin-top:16px"><a href="privacy.html">Read the full privacy policy →</a></p>
+</section>
+
+<section id="faq">
+  <div class="sec-head"><p class="eyebrow">Questions</p><h2>Good to know</h2></div>
+  <details><summary>Will it ever block or slow down my team?</summary><p>No. It runs in shadow mode: GitHub tells the app what already happened, and the app only reports what Authority would have done. Your work is never paused.</p></details>
+  <details><summary>Can it read my code?</summary><p>GitHub requires read access to contents before it will send push events, so the permission is there. The app uses only the event itself (who, which branch, whether it was a force-push) and never fetches files, diffs or commit messages.</p></details>
+  <details><summary>Where do the reports go?</summary><p>To an issue in a private repository the app can see, preferably one named <code>mastyf-reports</code> or <code>.github</code>. If it can see no private repository, it posts nothing and waits until you add one.</p></details>
+  <details><summary>What does it cost?</summary><p>The app is free. If the reports are useful and you want Authority to actually hold risky actions until a second person approves (on GitHub, AWS, Okta, data exports and AI agents), we offer a free 60-day pilot to our first three founding design partners.</p></details>
+  <details><summary>What does it not cover?</summary><p>Only what GitHub sends to apps: it cannot see who viewed or cloned what (that needs GitHub Enterprise's audit log), and personal accounts have no organisation events such as new owners.</p></details>
+  <details><summary>How do I remove it?</summary><p>Uninstall it in your organisation's settings under GitHub Apps. The app deletes everything it kept about your organisation the moment GitHub tells it you uninstalled.</p></details>
+</section>
+
+<section>
+  <div class="cta">
+    <p class="eyebrow">Free · 1 minute</p>
+    <h2>See your own week</h2>
+    <p>Install it, add a private <code>mastyf-reports</code> repository, and your first report arrives in seven days.</p>
+    <a class="btn primary install" href="https://github.com/apps/mastyf-authority/installations/new"><svg><use href="#gh"/></svg>Install Mastyf Authority</a>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap"><img src="logo.png" alt=""><span>Mastyf Authority for GitHub · by Mastyf Labs</span><span class="spacer"></span>
+  <a href="privacy.html">Privacy</a><a href="https://github.com/mastyf-ai/mastyf-authority/issues">Support</a><a href="https://github.com/mastyf-ai/mastyf-authority">Open-source engine</a><a href="https://www.mastyf.ai/authority">mastyf.ai</a></div></footer>
+
+<script>
+"use strict";
+const EVENTS = [
+  { id: "fp-main", icon: "i-rewrite", t: "Force-push to main", s: "push · forced: true",
+    gh: "push  ref: refs/heads/main\nforced: true  commits: 3", au: "repo.history_rewrite\ngithub://acme/payments-api/main",
+    ck: "policy: protected branch\nmain, master, release/*", v: "bad", vt: "Refused",
+    what: "mallory force-pushed to main in payments-api, rewriting its history.",
+    why: "History on a protected branch is never rewritten. No approval can clear this.",
+    enf: "<b>With Authority enforcing</b>, the push is rejected before it lands, and the attempt is in a signed audit log." },
+  { id: "public", icon: "i-eye", t: "Repository made public", s: "repository · publicized",
+    gh: "repository  action: publicized\nrepository: infra-secrets", au: "data.export\n→ https://github.com/acme/infra-secrets",
+    ck: "always needs approval:\ndata leaving the organisation", v: "warn", vt: "Held for a second person",
+    what: "jordan made the private repository infra-secrets public.",
+    why: "Making private code public is a data export. It waits for someone else to confirm it was intended.",
+    enf: "<b>With Authority enforcing</b>, the change waits until a second person approves it with their passkey." },
+  { id: "owner", icon: "i-user", t: "New organisation owner", s: "organization · member_added (admin)",
+    gh: "organization  action: member_added\nrole: admin  user: eve", au: "permission.grant\ngithub://acme  to: eve",
+    ck: "always needs approval:\ngranting power", v: "warn", vt: "Held for a second person",
+    what: "sam made eve an owner of acme.",
+    why: "Owners can change everything, including the protections. A second person confirms it.",
+    enf: "<b>With Authority enforcing</b>, eve becomes an owner only after another owner approves." },
+  { id: "deploy", icon: "i-key", t: "Read-write deploy key added", s: "deploy_key · created",
+    gh: "deploy_key  action: created\nread_only: false", au: "permission.grant\ngithub://acme/web/deploy-keys",
+    ck: "always needs approval:\nnew credential", v: "warn", vt: "Held for a second person",
+    what: "ci-admin added a read-write deploy key to web.",
+    why: "A deploy key is a password that can push code, outside anyone's account. It should be expected.",
+    enf: "<b>With Authority enforcing</b>, the key works only after a second person approves it." },
+  { id: "bp", icon: "i-shield", t: "Branch protection removed", s: "branch_protection_rule · deleted",
+    gh: "branch_protection_rule\naction: deleted  rule: main", au: "security.control_change\ngithub://acme/web/branch-protection/main",
+    ck: "always needs approval:\nweakening a control", v: "warn", vt: "Held for a second person",
+    what: "sam removed branch protection on main in web.",
+    why: "Turning a protection off is the usual first step before doing something it would have stopped.",
+    enf: "<b>With Authority enforcing</b>, the protection stays on until a second person agrees." },
+  { id: "delete", icon: "i-trash", t: "Repository deleted", s: "repository · deleted",
+    gh: "repository  action: deleted\nrepository: billing-legacy", au: "storage.delete\ngithub://acme/billing-legacy",
+    ck: "always needs approval:\nirreversible deletion", v: "warn", vt: "Held for a second person",
+    what: "jordan deleted the repository billing-legacy.",
+    why: "Deletions cannot be undone after GitHub's grace period. A second person confirms.",
+    enf: "<b>With Authority enforcing</b>, the deletion waits for a second person's passkey." },
+  { id: "fp-feature", icon: "i-branch", t: "Force-push to a feature branch", s: "push · forced: true",
+    gh: "push  ref: refs/heads/feature/login\nforced: true  commits: 2", au: "repo.history_rewrite\ngithub://acme/web/feature/login",
+    ck: "not protected · normal for priya\nrisk model: low", v: "ok", vt: "Allowed",
+    what: "priya force-pushed to feature/login, as she does most weeks.",
+    why: "Rewriting your own feature branch is everyday work. Authority only holds it when it is unusual for that person.",
+    enf: "<b>With Authority enforcing</b>, nothing changes: everyday work is never interrupted." },
+  { id: "push", icon: "i-push", t: "Ordinary push", s: "push · forced: false",
+    gh: "push  ref: refs/heads/feature/login\nforced: false  commits: 4", au: "repo.push\ngithub://acme/web/feature/login",
+    ck: "within policy\nnormal behaviour", v: "ok", vt: "Allowed",
+    what: "priya pushed 4 commits to feature/login.",
+    why: "Normal work goes straight through. It also teaches Authority what normal looks like for priya.",
+    enf: "<b>With Authority enforcing</b>, nothing changes." },
+];
+const ICON = { ok: "✓", warn: "⏸", bad: "✕" };
+const $ = (id) => document.getElementById(id);
+const list = $("events");
+let timers = [];
+EVENTS.forEach((e) => {
+  const b = document.createElement("button");
+  b.className = "ev"; b.type = "button"; b.setAttribute("aria-pressed", "false");
+  b.innerHTML = `<span class="ic"><svg><use href="#${e.icon}"/></svg></span><span class="ttl"><b>${e.t}</b><small>${e.s}</small></span>`;
+  b.addEventListener("click", () => {
+    run(e, b);
+    if (window.innerWidth < 920) $("stage").scrollIntoView({ behavior: "smooth", block: "start" });  // result is below the list on phones
+  });
+  list.append(b);
+});
+function run(e, btn) {
+  timers.forEach(clearTimeout); timers = [];
+  list.querySelectorAll(".ev").forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+  $("hint").hidden = true; $("out").hidden = false;
+  ["n1", "n2", "n3", "a1", "a2"].forEach((i) => $(i).classList.remove("on"));
+  $("verdict").classList.remove("show");
+  $("c1").textContent = e.gh; $("c2").textContent = e.au; $("c3").textContent = e.ck;
+  const step = (ms, f) => timers.push(setTimeout(f, ms));
+  step(50, () => $("n1").classList.add("on"));
+  step(450, () => { $("a1").classList.add("on"); $("n2").classList.add("on"); });
+  step(850, () => { $("a2").classList.add("on"); $("n3").classList.add("on"); });
+  step(1250, () => {
+    const v = $("vbig"); v.className = "vbig " + e.v; v.textContent = ICON[e.v] + " " + e.vt;
+    $("vwhat").textContent = e.what; $("vwhy").textContent = e.why; $("venf").innerHTML = e.enf;
+    $("verdict").classList.add("show");
+  });
+}
+// open with the most telling example
+run(EVENTS[0], list.firstChild);
+</script>
+</body>
+</html>

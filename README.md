@@ -125,7 +125,9 @@ authority ceiling --policy policies/default.json   # the worst-case damage of a 
 
 ### Try it on your GitHub organisation
 
-No setup: install **[Mastyf Authority](https://github.com/apps/mastyf-authority)** on your organisation. It runs in
+No setup: install **[Mastyf Authority](https://github.com/apps/mastyf-authority)** on your organisation
+([try it in your browser first](https://mastyf-ai.github.io/mastyf-authority/github-app/#try): click an event and see
+what Authority decides). It runs in
 **shadow mode**: it blocks nothing and asks nobody, it decides each risky event the way Authority would, and once a
 week it posts a report as an issue in a private repository of yours.
 
@@ -140,7 +142,7 @@ week it posts a report as an issue in a private repository of yours.
 **What it can see, and what it keeps.** It asks for read access to metadata, administration, members and
 deployments, and to contents only because GitHub sends push events to apps with that permission; it never reads
 code. It writes issues, for the report. It keeps the event kind, account, repository, branch, time and verdict for 90
-days, and uninstalling it deletes all of that. Reports go only to a private repository: add one named
+days, and uninstalling it deletes all of that ([privacy policy](https://mastyf-ai.github.io/mastyf-authority/github-app/privacy.html)). Reports go only to a private repository: add one named
 `mastyf-reports` (or `.github`) to the installation; with no private repository, nothing is posted.
 
 The app is a hosted service run by Mastyf (it is not part of this repository). To run Authority yourself, on your own
