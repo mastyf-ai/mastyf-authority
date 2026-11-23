@@ -183,6 +183,13 @@ def main(argv: list[str] | None = None) -> None:
     sh.add_argument("--learn-days", type=int, default=30)
     sh.add_argument("--out", default="shadow_report.json")
 
+    gr = sub.add_parser("github-report", help="weekly shadow-mode report of risky GitHub actions (github_shadow.py)")
+    gr.add_argument("--repo", default="", help="owner/name: where the report goes (default: $GITHUB_REPOSITORY)")
+    gr.add_argument("--days", type=int, default=7)
+    gr.add_argument("--dry-run", action="store_true", help="print the report instead of posting it")
+    gr.add_argument("--allow-public", action="store_true", help="allow posting in a public repository")
+    gr.add_argument("--model", default="preview", help="preview (train a small one here), none, or a model file")
+
     lo = sub.add_parser("local", help="run the engine and web console on this computer, credentials made for you")
     lo.add_argument("op", nargs="?", default="start", choices=["start", "keys", "try", "approve-device"],
                     help="start (default): set up on first run and serve; keys: show sign-in keys; try: send sample "
@@ -222,6 +229,24 @@ def main(argv: list[str] | None = None) -> None:
     evv.add_argument("--public-key", required=True, help="the engine's authority.pub.pem")
 
     a = ap.parse_args(argv)
+    if a.cmd == "github-report":
+        import os as _os
+        from . import github_shadow as G
+        a.repo = a.repo or _os.environ.get("GITHUB_REPOSITORY", "")
+        tok = _os.environ.get("GITHUB_TOKEN", "")
+        if not tok or not a.repo:
+            raise SystemExit("set GITHUB_TOKEN and --repo owner/name (in GitHub Actions both are set for you)")
+        org_tok = _os.environ.get("MASTYF_ORG_TOKEN", "").strip()
+        out = G.weekly(G.GH(tok), a.repo, G.GH(org_tok) if org_tok else None, a.days,
+                       model=G.preview_model() if a.model == "preview" else (None if a.model == "none" else _load_model(a.model)),
+                       post=not a.dry_run,
+                       allow_public=a.allow_public)
+        summary = _os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary and not a.dry_run:
+            with open(summary, "a") as f:
+                f.write(f"### {out['title']}\n\n{out['url'] or ''}\n")
+        print(out["body"].split("<!-- mastyf-snapshot")[0] if a.dry_run else f"{out['title']}\n{out['url']}")
+        return
     if a.cmd == "local":
         from . import local
         return local.main(a.op, a.dir, a.port, a.policy, a.model, a.reset_keys)

@@ -125,7 +125,16 @@ authority ceiling --policy policies/default.json   # the worst-case damage of a 
 
 ### Try it on your GitHub organisation
 
-No setup: install **[Mastyf Authority](https://github.com/apps/mastyf-authority)** on your organisation
+Two ways, same rules and the same weekly report: [see both, and try it in your browser](https://mastyf-ai.github.io/mastyf-authority/github-app/).
+
+**In your own GitHub (we never see your data).** In a *private* repository (for example a new one named
+`mastyf-reports`), add [`action/mastyf-authority.yml`](action/mastyf-authority.yml) as
+`.github/workflows/mastyf-authority.yml`. Every Monday it runs on GitHub's runners and posts the report as an issue.
+On its own it covers that repository; add a read-only organisation token as the secret `MASTYF_ORG_TOKEN` to cover
+every repository and organisation-level changes ([how](https://mastyf-ai.github.io/mastyf-authority/github-app/#org-token)).
+Run it locally with `GITHUB_TOKEN=... authority github-report --repo owner/mastyf-reports --dry-run`.
+
+**One click (hosted by Mastyf).** Install **[Mastyf Authority](https://github.com/apps/mastyf-authority)** on your organisation
 ([try it in your browser first](https://mastyf-ai.github.io/mastyf-authority/github-app/#try): click an event and see
 what Authority decides). It runs in
 **shadow mode**: it blocks nothing and asks nobody, it decides each risky event the way Authority would, and once a

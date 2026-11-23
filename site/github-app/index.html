@@ -153,6 +153,22 @@ section{padding:72px 0}
 .box ul{margin:8px 0 0;padding-left:18px;color:var(--mute)}
 .box li{margin:6px 0}
 .box.yes{border-color:var(--ok-line)}.box.no{border-color:var(--bad-line)}
+.muted{color:var(--mute)}
+/* two ways */
+.ways{display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+@media (max-width:900px){.ways{grid-template-columns:1fr}}
+.way{border:1px solid var(--line);border-radius:18px;background:var(--card);padding:24px;position:relative}
+.way.hi{border-color:var(--accent-line);background:linear-gradient(180deg,rgba(227,180,83,.07),transparent 50%),var(--card)}
+.way .tag{position:absolute;top:-11px;left:20px;font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:var(--accent-ink);padding:5px 8px;border-radius:6px}
+.way ul{margin:10px 0 16px;padding-left:18px;color:var(--mute)}
+.way li{margin:5px 0}
+.code{position:relative;border:1px solid var(--line-2);border-radius:12px;background:var(--sunken);margin:12px 0 0}
+.code pre{margin:0;padding:16px;overflow-x:auto;font:12.5px/1.6 var(--mono);color:var(--ink)}
+.code .copy{position:absolute;top:8px;right:8px}
+.code .c{color:var(--faint)}.code .k{color:var(--info)}.code .s{color:var(--accent)}
+ol.how{margin:10px 0 0;padding-left:20px;color:var(--mute)}
+ol.how li{margin:8px 0}
+ol.how b{color:var(--ink)}
 /* faq */
 details{border:1px solid var(--line);border-radius:14px;background:var(--card);margin-bottom:10px;overflow:hidden}
 summary{cursor:pointer;list-style:none;padding:18px 20px;font-weight:600;color:var(--ink-strong);display:flex;justify-content:space-between;gap:16px}
@@ -188,7 +204,7 @@ footer img{width:22px;height:22px;border-radius:6px}
 <header class="top">
   <div class="wrap">
     <a class="brand" href="#"><img src="logo.png" alt=""><span>Mastyf Authority<small>for GitHub</small></span></a>
-    <nav aria-label="Page"><a href="#try">Try it</a><a href="#how">How it works</a><a href="#report">Report</a><a href="#privacy">Privacy</a><a href="#faq">FAQ</a></nav>
+    <nav aria-label="Page"><a href="#try">Try it</a><a href="#ways">Set up</a><a href="#report">Report</a><a href="#privacy">Privacy</a><a href="#faq">FAQ</a></nav>
     <a class="btn primary sm install" href="https://github.com/apps/mastyf-authority/installations/new"><svg><use href="#gh"/></svg>Install free</a>
   </div>
 </header>
@@ -201,7 +217,7 @@ footer img{width:22px;height:22px;border-radius:6px}
     <p class="lead">Install it on your organisation, then keep working as usual. Every risky event (a force-push to <code>main</code>, a repository made public, a new owner) is judged the way Mastyf Authority would. Once a week you get a short report. Nothing is ever blocked.</p>
     <div class="row">
       <a class="btn primary install" href="https://github.com/apps/mastyf-authority/installations/new"><svg><use href="#gh"/></svg>Install on GitHub, free</a>
-      <a class="btn" href="#try">Try it here first</a>
+      <a class="btn" href="#ways">Or run it in your own GitHub</a>
     </div>
     <div class="badges">
       <span class="badge"><i></i>Blocks nothing</span>
@@ -259,6 +275,59 @@ footer img{width:22px;height:22px;border-radius:6px}
     <div class="step"><h3>Install the app</h3><p>Choose your organisation and which repositories it may see. Add a private repository named <code>mastyf-reports</code>, so the weekly report has somewhere private to go.</p><div class="t">about 1 minute</div></div>
     <div class="step"><h3>Work as usual</h3><p>GitHub sends the app your risky events as they happen. Each is judged in shadow mode: nobody is asked, nothing is blocked, nothing slows down.</p><div class="t">no setup, no agents, no YAML</div></div>
     <div class="step"><h3>Read the weekly report</h3><p>An issue in your private repository: what would have waited for a second person's approval, what would have been refused, and how often your team would have been interrupted.</p><div class="t">every 7 days</div></div>
+  </div>
+</section>
+
+<section id="ways">
+  <div class="sec-head">
+    <p class="eyebrow">Two ways to run it</p>
+    <h2>Keep your data inside GitHub, or install in one click</h2>
+    <p>Same rules, same weekly report. Choose where it runs.</p>
+  </div>
+  <div class="ways">
+    <div class="way hi"><span class="tag">Recommended</span>
+      <h3>GitHub Action: runs in your GitHub</h3>
+      <ul><li><b>We never see your data.</b> It runs on GitHub's own runners, in your account.</li>
+        <li>Free, and uses only a minute of your Actions time a week.</li>
+        <li>Open source: you can read every line it runs.</li></ul>
+      <p class="muted" style="margin:0">In a <b>private</b> repository (for example a new one named <code>mastyf-reports</code>), add this file as <code>.github/workflows/mastyf-authority.yml</code>:</p>
+      <div class="code"><button class="btn sm copy" type="button" id="copywf">Copy</button><pre id="wf"><span class="k">name</span>: Mastyf Authority
+<span class="k">on</span>:
+  <span class="k">schedule</span>: [{ <span class="k">cron</span>: <span class="s">"0 6 * * 1"</span> }]   <span class="c"># Mondays</span>
+  <span class="k">workflow_dispatch</span>:
+<span class="k">permissions</span>: { <span class="k">contents</span>: read, <span class="k">issues</span>: write }
+<span class="k">jobs</span>:
+  <span class="k">report</span>:
+    <span class="k">runs-on</span>: ubuntu-latest
+    <span class="k">steps</span>:
+      - <span class="k">uses</span>: mastyf-ai/mastyf-authority/action@main
+        <span class="k">with</span>:
+          <span class="k">org-token</span>: ${{ secrets.MASTYF_ORG_TOKEN }}</pre></div>
+      <p class="muted" style="margin:12px 0 0">Then <b>Actions → Mastyf Authority → Run workflow</b> for your first report now.</p>
+    </div>
+    <div class="way">
+      <h3>GitHub App: one click</h3>
+      <ul><li>Install and choose repositories. Nothing to copy.</li>
+        <li>Judges events the moment they happen.</li>
+        <li>Hosted by Mastyf: event details (never code) pass through our service and are kept for 90 days.</li></ul>
+      <a class="btn install" href="https://github.com/apps/mastyf-authority/installations/new"><svg><use href="#gh"/></svg>Install the app</a>
+    </div>
+  </div>
+</section>
+
+<section id="org-token">
+  <div class="sec-head">
+    <p class="eyebrow">Optional · see the whole organisation</p>
+    <h2>Give the Action a read-only token</h2>
+    <p>On its own, a workflow can only see the repository it runs in. With a read-only token it covers every repository and organisation-level changes: new owners, repositories made public or deleted, protections removed, new deploy keys and admins.</p>
+  </div>
+  <div class="box">
+    <ol class="how">
+      <li><b>Create a fine-grained token</b> at <a href="https://github.com/settings/personal-access-tokens/new">github.com/settings/personal-access-tokens/new</a>: resource owner = your organisation, <b>All repositories</b>, repository permission <b>Administration: Read-only</b> (Metadata is added for you), organisation permission <b>Members: Read-only</b>. Nothing else.</li>
+      <li><b>Save it as a secret</b> in the repository with the workflow: <b>Settings → Secrets and variables → Actions → New repository secret</b>, name <code>MASTYF_ORG_TOKEN</code>.</li>
+      <li><b>Run it:</b> <b>Actions → Mastyf Authority → Run workflow</b>, or wait for Monday.</li>
+    </ol>
+    <p class="muted" style="margin:14px 0 0">The token is read-only and never leaves GitHub: only your workflow uses it, on GitHub's runner. Some organisations require an owner to approve fine-grained tokens; GitHub will ask if so.</p>
   </div>
 </section>
 
@@ -427,6 +496,11 @@ function run(e, btn) {
     $("verdict").classList.add("show");
   });
 }
+$("copywf").addEventListener("click", async () => {
+  const txt = $("wf").innerText;
+  try { await navigator.clipboard.writeText(txt); $("copywf").textContent = "Copied"; } catch (_) { $("copywf").textContent = "Select and copy"; }
+  setTimeout(() => { $("copywf").textContent = "Copy"; }, 1800);
+});
 // open with the most telling example
 run(EVENTS[0], list.firstChild);
 </script>
