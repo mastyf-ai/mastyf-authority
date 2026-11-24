@@ -128,7 +128,7 @@ authority ceiling --policy policies/default.json   # the worst-case damage of a 
 A GitHub Action opens a weekly issue listing the changes that should have had a second person's approval:
 force-pushes to protected branches, repositories made public or deleted, new owners, admins and deploy keys, and
 branch protection removed. It runs on GitHub's runners in your account, blocks nothing, and sends nothing to us.
-[Details and a sample report](https://mastyf-ai.github.io/mastyf-authority/github-app/).
+[Details and a sample report](https://mastyf-ai.github.io/mastyf-authority/github-app/) · [GitHub Marketplace](https://github.com/marketplace/actions/mastyf-authority-weekly-report) · [action source](https://github.com/mastyf-ai/authority-action).
 
 1. In a **private** repository (for example a new one named `mastyf-reports`), add
    [`action/mastyf-authority.yml`](action/mastyf-authority.yml) as `.github/workflows/mastyf-authority.yml`.

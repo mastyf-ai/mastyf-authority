@@ -1,3 +1,5 @@
+# Superseded by mastyf-ai/authority-action@v1 (pinned versions, GitHub Marketplace); kept so existing
+# workflows that use mastyf-ai/mastyf-authority/action@main keep working.
 name: Mastyf Authority weekly report
 description: Which GitHub actions should have needed a second person? A weekly shadow-mode report, run entirely inside your GitHub.
 author: Mastyf Labs

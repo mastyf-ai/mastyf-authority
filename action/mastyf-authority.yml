@@ -10,7 +10,7 @@ jobs:
   report:
     runs-on: ubuntu-latest
     steps:
-      - uses: mastyf-ai/mastyf-authority/action@main
+      - uses: mastyf-ai/authority-action@v1
         with:
           # optional: a read-only organisation token makes the report cover every repository (see the report)
           org-token: ${{ secrets.MASTYF_ORG_TOKEN }}
